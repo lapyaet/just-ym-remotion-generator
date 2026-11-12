@@ -2,7 +2,7 @@
 
 Describe a video in plain language and get an animated video back. An AI (an open-source model or Claude) writes the scenes, colors and timing, you preview the result instantly in the browser, and Remotion renders it to MP4.
 
-**Stack:** Next.js 16 (App Router) · Better Auth (Google login) · Prisma 7 + SQLite · open-source LLMs (Ollama, Groq, any OpenAI-compatible API) or Claude · Remotion 4
+**Stack:** Next.js 16 (App Router) · Better Auth (Google login) · Prisma 7 + Postgres · open-source LLMs (Ollama, Groq, any OpenAI-compatible API) or Claude · Remotion 4
 
 ## How it works
 
@@ -18,7 +18,7 @@ Every project and render belongs to the signed-in user, and every API route chec
 ```bash
 npm install                 # also runs `prisma generate`
 cp .env.example .env        # then fill in the values below
-npx prisma migrate dev      # creates prisma/dev.db
+npm run db:deploy           # creates the tables in your Postgres DB
 npm run dev                 # http://localhost:3000
 ```
 
@@ -67,7 +67,7 @@ On a CPU without a GPU, generation can take a few minutes per video. Small model
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | See below |
 | `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY` | Open-source model; see "Choosing the AI" |
 | `ANTHROPIC_API_KEY` | Optional, Claude: https://platform.claude.com/settings/keys |
-| `DATABASE_URL` | `file:./prisma/dev.db` (default) |
+| `DATABASE_URL` / `DATABASE_URL_UNPOOLED` | Postgres connection strings, e.g. free [Neon](https://neon.tech) (pooled / direct) |
 
 ### Google OAuth
 
@@ -77,6 +77,15 @@ On a CPU without a GPU, generation can take a few minutes per video. Small model
 4. Add the authorized redirect URI `http://localhost:3000/api/auth/callback/google`, plus your production URL when you deploy.
 5. Copy the client ID and secret into `.env`.
 
+## Deploy to Vercel
+
+1. **Database:** in the Vercel project, open **Storage → Create Database → Neon** (free) and connect it. This sets `DATABASE_URL` and `DATABASE_URL_UNPOOLED`. SQLite does not work on Vercel, because the filesystem is read-only and resets between requests.
+2. **Tables:** copy those two values into your local `.env` and run `npm run db:deploy` once. Run it again after every schema change.
+3. **Environment variables** (Settings → Environment Variables): `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL=https://<your-app>.vercel.app`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, plus your AI settings (`LLM_*` or `ANTHROPIC_API_KEY`). Redeploy after changing them.
+4. **Google OAuth client:** add `https://<your-app>.vercel.app` to *Authorized JavaScript origins* and `https://<your-app>.vercel.app/api/auth/callback/google` to *Authorized redirect URIs*.
+
+MP4 rendering is turned off on Vercel, because it needs Chrome and ffmpeg on a long-running server. The in-browser preview works. To export MP4s, run the app with Docker or on a VPS, or add [Remotion Lambda](https://www.remotion.dev/docs/lambda).
+
 ## Rendering requirements
 
 Server-side rendering starts headless Chrome and ffmpeg, so it needs a **long-running Node server**. It does not run on serverless hosts such as Vercel; use [Remotion Lambda](https://www.remotion.dev/docs/lambda) there.
@@ -85,7 +94,7 @@ Server-side rendering starts headless Chrome and ffmpeg, so it needs a **long-ru
 - **Older macOS (≤ 14):** Remotion's bundled ffmpeg and Chrome need macOS 15. The preview still works, but MP4 renders fail. Use Docker instead:
 
 ```bash
-docker compose up --build   # http://localhost:3000, data persists in ./data and ./storage
+docker compose up --build   # http://localhost:3000, includes a Postgres container; MP4s go to ./storage
 ```
 
 ## Scripts
@@ -120,7 +129,6 @@ prisma/schema.prisma             auth tables + Project + Render
 
 - **More scene types:** add a value to `SceneSchema.type` and handle it in `SceneView`. The AI picks it up automatically from the schema.
 - **Images, music, voiceover:** add fields to the spec (for example an image URL) and render them with Remotion's `<Img>` and `<Audio>`.
-- **Postgres:** set `provider = "postgresql"` in the schema, switch to `@prisma/adapter-pg`, and change `provider: "sqlite"` in [src/lib/auth.ts](src/lib/auth.ts).
 
 ## Licensing note
 

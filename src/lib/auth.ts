@@ -5,7 +5,7 @@ import { nextCookies } from "better-auth/next-js";
 import { prisma } from "./prisma";
 
 export const auth = betterAuth({
-  database: prismaAdapter(prisma, { provider: "sqlite" }),
+  database: prismaAdapter(prisma, { provider: "postgresql" }),
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID as string,

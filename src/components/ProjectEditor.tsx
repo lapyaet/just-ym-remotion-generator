@@ -19,11 +19,13 @@ export function ProjectEditor({
   prompt,
   initialSpec,
   initialRenders,
+  renderingAvailable,
 }: {
   projectId: string;
   prompt: string;
   initialSpec: VideoSpec;
   initialRenders: RenderRow[];
+  renderingAvailable: boolean;
 }) {
   const router = useRouter();
   const [spec, setSpec] = useState(initialSpec);
@@ -145,11 +147,18 @@ export function ProjectEditor({
           <button
             type="button"
             onClick={render}
-            disabled={busy !== null || !!active}
+            disabled={busy !== null || !!active || !renderingAvailable}
             className="mt-4 w-full rounded-full bg-indigo-500 py-2.5 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
           >
             {active ? `Rendering… ${Math.round(active.progress * 100)}%` : "Render MP4"}
           </button>
+
+          {!renderingAvailable ? (
+            <p className="mt-3 text-xs text-amber-300/90">
+              MP4 export isn&apos;t available on this server (Vercel). Run the app with Docker or on a Node server to
+              render MP4s.
+            </p>
+          ) : null}
 
           <ul className="mt-4 space-y-2">
             {renders.map((r) => (

@@ -4,6 +4,7 @@ import { ProjectEditor } from "@/components/ProjectEditor";
 import { prisma } from "@/lib/prisma";
 import { getOwnedProject, parseSpec } from "@/lib/projects";
 import { requireUser } from "@/lib/session";
+import { renderingAvailable } from "@/lib/platform";
 
 export default function ProjectPage({ params }: PageProps<"/projects/[id]">) {
   return (
@@ -33,6 +34,7 @@ async function Project({ params }: { params: Promise<{ id: string }> }) {
       prompt={project.prompt}
       initialSpec={parseSpec(project.spec)}
       initialRenders={renders.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }))}
+      renderingAvailable={renderingAvailable()}
     />
   );
 }

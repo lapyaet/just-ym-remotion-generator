@@ -9,7 +9,6 @@ const nextConfig: NextConfig = {
     "@remotion/bundler",
     "@remotion/renderer",
     "esbuild",
-    "better-sqlite3",
   ],
   turbopack: {
     rules: {

@@ -5,10 +5,25 @@ services:
       - "3000:3000"
     env_file: .env
     environment:
-      DATABASE_URL: "file:./data/app.db"
+      # Uses the bundled Postgres below. Remove these two lines to use the
+      # DATABASE_URL from .env (e.g. Neon) instead.
+      DATABASE_URL: "postgresql://postgres:postgres@db:5432/promptreel"
+      DATABASE_URL_UNPOOLED: "postgresql://postgres:postgres@db:5432/promptreel"
+    depends_on:
+      - db
     volumes:
-      - ./data:/app/data # SQLite database
       - ./storage:/app/storage # rendered MP4s
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: promptreel
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
 
   # Optional local open-source model server (CPU). Start with:
   #   docker compose --profile local-ai up -d ollama
@@ -24,4 +39,5 @@ services:
       - ollama:/root/.ollama
 
 volumes:
+  pgdata:
   ollama:

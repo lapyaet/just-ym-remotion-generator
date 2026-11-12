@@ -1,16 +1,17 @@
 import "server-only";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function createClient() {
-  const adapter = new PrismaBetterSqlite3({
-    url: process.env.DATABASE_URL ?? "file:./prisma/dev.db",
-  });
+  if (!process.env.DATABASE_URL) {
+    console.warn("DATABASE_URL is not set: database queries will fail. Point it at a Postgres database (e.g. Neon).");
+  }
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
   return new PrismaClient({ adapter });
 }
 
-// Reuse one client across hot reloads in development.
+// Reuse one client across hot reloads and warm serverless invocations.
 export const prisma = globalForPrisma.prisma ?? createClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+globalForPrisma.prisma = prisma;
