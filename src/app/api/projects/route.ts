@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   if ("error" in req) return NextResponse.json({ error: req.error }, { status: 400 });
 
   try {
-    const spec = await generateVideoSpec(req.text);
+    const spec = await generateVideoSpec(req.text, undefined, { userId: user.id });
     const project = await prisma.project.create({
       data: { userId: user.id, prompt: req.summary, title: spec.title, spec: JSON.stringify(spec) },
     });

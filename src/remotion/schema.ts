@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { isSafeMusicFile, MUSIC_IDS, MUSIC_TRACKS } from "./music";
+import { isSafeMusicFile, MUSIC_IDS, MUSIC_TRACKS, musicBpm } from "./music";
+import { TEMPLATE_IDS, TEMPLATES } from "./templates";
 
 /**
  * Two shapes of the same video:
@@ -11,7 +12,7 @@ import { isSafeMusicFile, MUSIC_IDS, MUSIC_TRACKS } from "./music";
  * strings / arrays mean "not used".
  */
 
-export const SCENE_TYPES = ["hook", "attraction", "caption", "deals", "payment", "outro"] as const;
+export const SCENE_TYPES = ["hook", "attraction", "caption", "deals", "app", "payment", "outro"] as const;
 
 export const GeneratedSceneSchema = z.object({
   type: z.enum(SCENE_TYPES).describe(
@@ -20,6 +21,7 @@ export const GeneratedSceneSchema = z.object({
       "attraction: one attraction on a full-screen photo. tag = attraction name in capitals for the orange pill, location = '@CITY' or a short place line, headline + highlight = two-line caption, subtitle = small English line, productIds = exactly one product to show as a price card.",
       "caption: a text moment on a photo (a question, a tip, 'WORTH IT!'). headline + highlight + optional subtitle.",
       "deals: 2-4 product cards in a grid. headline + highlight on top, productIds = the products, subtitle = short line in a white pill at the bottom.",
+      "app: a phone showing the justym.me app: the city is typed into search and 3-5 of its tickets scroll by with prices, one gets tapped and booked. headline + highlight above the phone (e.g. 'Book these Phuket tickets on Just YM'), productIds = 3-5 products from the same city, tag = the city name for the search box.",
       "payment: orange scene saying you can pay with Myanmar wallets (KBZPay, AYA Pay, Wave, MMQR) and no need to exchange baht. headline + highlight + subtitle.",
       "outro: closing scene with the logo and 'Book now · justym.me'. headline like 'Your Moment.', highlight = short line under it.",
     ].join(" "),
@@ -36,12 +38,17 @@ export const GeneratedSceneSchema = z.object({
     .string()
     .describe("Discount label like '27% OFF' or 'UP TO 63% OFF' ONLY if the user's request states that discount. Otherwise empty string."),
   durationInSeconds: z.number().describe("2-5 seconds. Short, punchy scenes like a social media reel."),
-  transition: z.enum(["cut", "fade", "orange-wipe"]).describe("How this scene changes into the next one."),
+  transition: z
+    .enum(["cut", "fade", "signature"])
+    .describe("How this scene changes into the next one: cut, fade, or the template's signature transition (use signature for 1-2 big moments)."),
 });
 
 export const GeneratedVideoSchema = z.object({
   title: z.string().describe("Short project title, max ~6 words, e.g. 'Bangkok is Calling'."),
   aspectRatio: z.enum(["9:16", "16:9", "1:1"]),
+  template: z
+    .enum(TEMPLATE_IDS)
+    .describe(`Design template that fits the trip: ${TEMPLATE_IDS.map((id) => `${id} (${TEMPLATES[id].mood})`).join("; ")}.`),
   music: z
     .enum([...MUSIC_IDS, "none"])
     .describe(`Background music that fits the mood: ${MUSIC_TRACKS.map((t) => `${t.id} (${t.mood})`).join("; ")}; or none.`),
@@ -68,12 +75,17 @@ export const SceneSchema = GeneratedSceneSchema.omit({ photoId: true, productIds
 
 export const VideoSpecSchema = z.object({
   version: z.literal(2),
+  template: z.enum(TEMPLATE_IDS),
+  /** Variation inside the template (zoom direction, tilt, caption position). */
+  seed: z.number(),
   title: z.string(),
   aspectRatio: z.enum(["9:16", "16:9", "1:1"]),
   /** e.g. "Prices shown on justym.me, Nov 2026. Subject to change." */
   priceNote: z.string(),
   /** File in /public/music, or "" for silent. */
   music: z.string(),
+  /** Whoosh / pop / ding sound effects on cuts and key moments. */
+  sfx: z.boolean(),
   scenes: z.array(SceneSchema),
 });
 
@@ -124,11 +136,16 @@ export function normalizeSpec(spec: VideoSpec): VideoSpec {
     discount: cut(s.discount, 24),
     imageUrl: /^https:\/\//.test(s.imageUrl ?? "") ? s.imageUrl : "",
     products: (s.products ?? []).slice(0, 4),
-    durationInSeconds: clamp(Number(s.durationInSeconds) || 3, 1.5, 8),
+    durationInSeconds: clamp(Number(s.durationInSeconds) || 3, s.type === "app" ? 4.5 : 1.5, 8),
+    // "orange-wipe" was the signature transition before templates existed.
+    transition: (s.transition as string) === "orange-wipe" ? ("signature" as const) : s.transition,
   }));
   return {
     ...spec,
+    template: TEMPLATE_IDS.includes(spec.template) ? spec.template : "calling",
+    seed: Number.isFinite(spec.seed) ? Math.abs(Math.floor(spec.seed)) % 2 ** 31 : 0,
     music: isSafeMusicFile(spec.music ?? "") ? spec.music : "",
+    sfx: spec.sfx ?? true,
     version: 2,
     title: cut(spec.title, 80) || "Untitled video",
     scenes: scenes.length ? scenes : [emptyScene("outro", { headline: "Your Moment." })],
@@ -153,14 +170,47 @@ export function emptyScene(type: Scene["type"], fields: Partial<Scene> = {}): Sc
   };
 }
 
-/** Frames per scene, plus the total (transitions overlap neighbouring scenes). */
+const transitionFrames = (spec: VideoSpec, i: number) =>
+  i < spec.scenes.length - 1 && spec.scenes[i].transition !== "cut" ? TRANSITION_FRAMES : 0;
+
+/**
+ * Scene timing. When the music's tempo is known, every cut is snapped to the
+ * beat grid (half-bar steps) so edits land on the music.
+ *   frames[i]: length of scene i, starts[i]: first frame, cuts[i]: frame of the
+ *   visible change into scene i+1 (middle of the transition).
+ */
+export function sceneTimeline(spec: VideoSpec) {
+  const bpm = musicBpm(spec.music);
+  const step = bpm ? ((FPS * 60) / bpm) * 2 : 0; // two beats
+  const frames: number[] = [];
+  const starts: number[] = [];
+  const cuts: number[] = [];
+  let start = 0;
+  spec.scenes.forEach((s, i) => {
+    const t = transitionFrames(spec, i);
+    const desired = Math.round(s.durationInSeconds * FPS);
+    let f = desired;
+    if (step) {
+      const minCut = start + 45 - t / 2;
+      const k = Math.max(Math.round((start + desired - t / 2) / step), Math.ceil(minCut / step));
+      f = Math.max(45, Math.round(k * step - start + t / 2));
+    }
+    frames.push(f);
+    starts.push(start);
+    cuts.push(start + f - t / 2);
+    start += f - t;
+  });
+  return { frames, starts, cuts, total: Math.max(1, start + (spec.scenes.length ? 0 : 1)) };
+}
+
+/** Frames per scene (beat-synced when possible). */
 export function sceneFrames(spec: VideoSpec) {
-  return spec.scenes.map((s) => Math.round(s.durationInSeconds * FPS));
+  return sceneTimeline(spec).frames;
 }
 
 export function totalFrames(spec: VideoSpec) {
-  const frames = sceneFrames(spec);
-  const overlaps = spec.scenes.slice(0, -1).filter((s) => s.transition !== "cut").length * TRANSITION_FRAMES;
+  const { frames } = sceneTimeline(spec);
+  const overlaps = spec.scenes.reduce((sum, _, i) => sum + transitionFrames(spec, i), 0);
   return Math.max(1, frames.reduce((a, b) => a + b, 0) - overlaps);
 }
 
@@ -177,6 +227,9 @@ export function fromLegacySpec(raw: Record<string, unknown>): VideoSpec {
   );
   return normalizeSpec({
     version: 2,
+    template: "calling",
+    seed: 0,
+    sfx: true,
     title: String(raw.title ?? "Untitled video"),
     aspectRatio: (["9:16", "16:9", "1:1"] as const).find((a) => a === raw.aspectRatio) ?? "16:9",
     priceNote: "",

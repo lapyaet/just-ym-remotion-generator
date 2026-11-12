@@ -65,7 +65,7 @@ export function buildDemoVideo(prompt: string, previous: GeneratedVideo | undefi
         photoId: p.id,
         productIds: [p.id],
         durationInSeconds: 3.5,
-        transition: i === featured.length - 1 ? "orange-wipe" : "fade",
+        transition: i === featured.length - 1 ? "signature" : "fade",
       }),
     ),
     scene("caption", {
@@ -86,7 +86,20 @@ export function buildDemoVideo(prompt: string, previous: GeneratedVideo | undefi
         photoId: more[0].id,
         discount,
         durationInSeconds: 4,
-        transition: "orange-wipe",
+        transition: "signature",
+      }),
+    );
+  }
+  if (inCity.length >= 3) {
+    scenes.push(
+      scene("app", {
+        tag: city || "Bangkok",
+        headline: `Find ${place} tickets`,
+        highlight: "on Just YM",
+        productIds: inCity.slice(0, 5).map((p) => p.id),
+        discount,
+        durationInSeconds: 5,
+        transition: "fade",
       }),
     );
   }
@@ -111,9 +124,19 @@ export function buildDemoVideo(prompt: string, previous: GeneratedVideo | undefi
     : has(prompt, ["festival", "party", "night", "concert", "theme park", "hype", "sale"])
       ? "festival-hype"
       : "sunny-pop";
+  const template: GeneratedVideo["template"] = has(prompt, ["sale", "deal", "discount", "% off", "promo", "offer"])
+    ? "flash"
+    : has(prompt, ["night", "bar", "rooftop", "party", "festival", "concert", "show"])
+      ? "neon"
+      : has(prompt, ["luxury", "sunset", "cruise", "before you leave", "elegant", "premium"])
+        ? "cinematic"
+        : has(prompt, ["nature", "temple", "culture", "journal", "couple", "honeymoon", "slow", "chiang mai"])
+          ? "journal"
+          : (["calling", "cinematic", "journal", "neon", "flash"] as const)[Math.floor(Math.random() * 5)];
   return {
     title: city ? `${city} is Calling` : prompt.split(/[.,:!?\n]/)[0].slice(0, 40) || "Just YM reel",
     aspectRatio: pickAspect(prompt) ?? "9:16",
+    template,
     music,
     scenes,
   };

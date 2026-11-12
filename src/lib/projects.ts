@@ -11,5 +11,10 @@ export function parseSpec(json: string): VideoSpec {
   const raw = JSON.parse(json);
   // Videos made before the Just YM reel format are converted on the fly.
   if (raw.version !== 2) return fromLegacySpec(raw);
+  // Fill fields added after a video was saved (templates, signature transition).
+  raw.template ??= "calling";
+  raw.seed ??= 0;
+  raw.sfx ??= true;
+  for (const s of raw.scenes ?? []) if (s.transition === "orange-wipe") s.transition = "signature";
   return normalizeSpec(VideoSpecSchema.parse(raw));
 }

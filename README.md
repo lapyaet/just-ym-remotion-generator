@@ -93,6 +93,32 @@ On a CPU without a GPU, generation can take a few minutes per video. Small model
 4. Add the authorized redirect URI `http://localhost:3000/api/auth/callback/google`, plus your production URL when you deploy.
 5. Copy the client ID and secret into `.env`.
 
+## Design templates
+
+Every video uses one of five templates ([src/remotion/templates.ts](src/remotion/templates.ts)), each with its own colours, fonts, photo framing, captions, price cards, opening animation and signature transition:
+
+| Template | Look | Opening | Signature transition |
+|---|---|---|---|
+| **Is Calling** | Bold orange, full-screen photos, two-tone captions, white price cards | Logo stamp + popping letters | Orange circle wipe |
+| **Cinematic** | Letterbox bars, Playfair serif, gold, glass cards | Velvet curtains open | Dip to black |
+| **Travel Journal** | Cream paper, tilted polaroids with tape, handwriting, ticket-stub cards | Passport stamp | Slide |
+| **Neon Night** | Dark, glowing Bebas type, neon-bordered cards | Neon sign flickers on | Flash |
+| **Flash Sale** | Yellow/black, split-screen photos, text blocks, price tags, starburst stickers | Slam + screen shake | Hard wipe |
+
+The AI picks the template that fits the request (nightlife → Neon Night, sales → Flash Sale, slow nature trips → Travel Journal, …) and varies the scene structure. Every generation also gets a random **seed** that changes camera moves (zoom in/out, pan), tilts and caption placement, so two videos with the same template still differ. On the project page, **🎨 Design** switches template instantly, **🎲 Surprise me** picks a random one, and **↻ New variation** keeps the template with a new seed.
+
+## Production polish
+
+- **Beat-synced editing:** scene cuts snap to the music's beat grid (half-bar steps; tempos in [src/remotion/music.ts](src/remotion/music.ts)), so edits land on the music.
+- **Sound design:** original sound effects ([scripts/make-sfx.mjs](scripts/make-sfx.mjs) → `public/sfx/`): whooshes on cuts, an impact / stamp / sparkle on the opening (per template), pops when price cards land, a click and "ding" in the app scene, a ding on payment success, and a riser into the outro. Toggle them per video with **🔊 Sound effects** on the project page.
+- **Motion graphics per template** ([src/remotion/fx.tsx](src/remotion/fx.tsx)): golden bokeh (Is Calling), light leak + dust (Cinematic), floating doodles (Travel Journal), light streaks + sparkles (Neon Night), confetti (Flash Sale), plus ray bursts on big moments.
+- **Kinetic typography:** words rise out of a mask, blur in, flicker on, slam in, or "write on" depending on the template. Highlights get an underline sweep, and prices count up.
+- **App scene:** a phone running a justym.me-style app. The city is typed into search, real tickets with live prices scroll past, one is tapped, and "Booked ✓" drops in.
+
+## Download MP4 (works on Vercel)
+
+**⬇ Download MP4** renders the video in the viewer's browser with WebCodecs ([src/components/BrowserExport.tsx](src/components/BrowserExport.tsx), `@remotion/web-renderer`) and downloads it, including music, with no render server. It works on Vercel and anywhere else the site runs. Use a recent Chrome or Edge on a computer, and keep the tab open while it renders (about 1–2× the video length). Where server rendering is available (Docker, VPS), **Render on server instead** is offered as well.
+
 ## Just YM reel format
 
 Videos follow the style of Just YM's own promo reels ("Bangkok is Calling", "Phuket is Calling"): 15–30 second vertical clips with full-screen travel photos, the logo tile in the corner, two-tone Burmese captions with English subtitles, live price cards, and orange circle-wipe transitions.

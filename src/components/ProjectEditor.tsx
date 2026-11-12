@@ -6,7 +6,9 @@ import { Player } from "@remotion/player";
 import { GeneratedVideo } from "@/remotion/GeneratedVideo";
 import { DIMENSIONS, FPS, totalFrames, type VideoSpec } from "@/remotion/schema";
 import { MUSIC_TRACKS } from "@/remotion/music";
+import { randomSeed, TEMPLATE_IDS, TEMPLATES, type TemplateId } from "@/remotion/templates";
 import { GeneratingOverlay } from "./GeneratingOverlay";
+import { BrowserExport } from "./BrowserExport";
 
 type RenderRow = {
   id: string;
@@ -76,11 +78,17 @@ export function ProjectEditor({
     }
   }
 
-  async function changeMusic(music: string) {
+  /** Design changes apply to the preview instantly, then save in the background. */
+  async function changeDesign(patch: Partial<Pick<VideoSpec, "music" | "template" | "seed" | "sfx">>) {
     const previous = spec;
-    setSpec({ ...spec, music }); // update the preview right away
-    const data = await call("music", { method: "PATCH", body: JSON.stringify({ music }) }, `/api/projects/${projectId}`);
+    setSpec({ ...spec, ...patch });
+    const data = await call("music", { method: "PATCH", body: JSON.stringify(patch) }, `/api/projects/${projectId}`);
     if (!data) setSpec(previous);
+  }
+  const changeMusic = (music: string) => changeDesign({ music });
+  function surprise() {
+    const others = TEMPLATE_IDS.filter((id) => id !== spec.template);
+    changeDesign({ template: others[Math.floor(Math.random() * others.length)], seed: randomSeed() });
   }
 
   async function render() {
@@ -146,7 +154,45 @@ export function ProjectEditor({
             {busy === "revise" ? "Revising…" : "Revise"}
           </button>
         </form>
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+        <div className="mt-5 flex flex-wrap items-center gap-2 text-sm">
+          <span className="mr-1 text-zinc-400">🎨 Design</span>
+          {TEMPLATE_IDS.map((id: TemplateId) => (
+            <button
+              key={id}
+              type="button"
+              title={TEMPLATES[id].mood}
+              onClick={() => changeDesign({ template: id, seed: randomSeed() })}
+              disabled={busy !== null}
+              className={
+                spec.template === id
+                  ? "rounded-full bg-orange-400 px-3 py-1 font-medium text-zinc-950"
+                  : "rounded-full border border-white/15 px-3 py-1 text-zinc-300 hover:bg-white/10 disabled:opacity-50"
+              }
+            >
+              <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full align-middle" style={{ background: TEMPLATES[id].colors.primary, boxShadow: `0 0 0 2px ${TEMPLATES[id].colors.bg}` }} />
+              {TEMPLATES[id].label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={surprise}
+            disabled={busy !== null}
+            className="rounded-full border border-orange-400/40 px-3 py-1 text-orange-200 hover:bg-orange-400/10 disabled:opacity-50"
+          >
+            🎲 Surprise me
+          </button>
+          <button
+            type="button"
+            onClick={() => changeDesign({ seed: randomSeed() })}
+            disabled={busy !== null}
+            title="Same template, new camera moves, tilts and layout variations"
+            className="rounded-full border border-white/15 px-3 py-1 text-zinc-300 hover:bg-white/10 disabled:opacity-50"
+          >
+            ↻ New variation
+          </button>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <span className="mr-1 text-zinc-400">🎵 Music</span>
           {[...MUSIC_TRACKS.map((t) => ({ file: t.file, label: t.label })), { file: "", label: "No music" }].map((t) => (
             <button
@@ -163,6 +209,14 @@ export function ProjectEditor({
               {t.label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => changeDesign({ sfx: !spec.sfx })}
+            disabled={busy !== null}
+            className={spec.sfx ? "ml-2 rounded-full bg-white/15 px-3 py-1 text-zinc-100" : "ml-2 rounded-full border border-white/15 px-3 py-1 text-zinc-400 hover:bg-white/10"}
+          >
+            {spec.sfx ? "🔊 Sound effects on" : "🔇 Sound effects off"}
+          </button>
           {spec.music && !MUSIC_TRACKS.some((t) => t.file === spec.music) ? (
             <span className="rounded-full bg-orange-400 px-3 py-1 font-medium text-zinc-950">{spec.music}</span>
           ) : null}
@@ -174,22 +228,22 @@ export function ProjectEditor({
         <div className="rounded-xl border border-white/10 p-4">
           <h2 className="font-medium">Export</h2>
           <p className="mt-1 text-xs text-zinc-400">
-            {spec.aspectRatio} · {width}×{height} · {(totalFrames(spec) / FPS).toFixed(1)}s · {spec.scenes.length} scenes
+            {TEMPLATES[spec.template].label} · {spec.aspectRatio} · {(totalFrames(spec) / FPS).toFixed(1)}s · {spec.scenes.length} scenes
           </p>
-          <button
-            type="button"
-            onClick={render}
-            disabled={busy !== null || !!active || !renderingAvailable}
-            className="mt-4 w-full rounded-full bg-indigo-500 py-2.5 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
-          >
-            {active ? `Rendering… ${Math.round(active.progress * 100)}%` : "Render MP4"}
-          </button>
+          <div className="mt-4">
+            <BrowserExport spec={spec} fileName={`${spec.title.replace(/[^\w\- ]+/g, "").trim() || "video"}.mp4`} />
+            <p className="mt-2 text-[11px] text-zinc-500">Renders on this device, then downloads. Best in Chrome or Edge.</p>
+          </div>
 
-          {!renderingAvailable ? (
-            <p className="mt-3 text-xs text-amber-300/90">
-              MP4 export isn&apos;t available on this server (Vercel). Run the app with Docker or on a Node server to
-              render MP4s.
-            </p>
+          {renderingAvailable ? (
+            <button
+              type="button"
+              onClick={render}
+              disabled={busy !== null || !!active}
+              className="mt-4 w-full rounded-full border border-white/15 py-2 text-sm text-zinc-300 hover:bg-white/10 disabled:opacity-50"
+            >
+              {active ? `Rendering on server… ${Math.round(active.progress * 100)}%` : "Render on server instead"}
+            </button>
           ) : null}
 
           <ul className="mt-4 space-y-2">

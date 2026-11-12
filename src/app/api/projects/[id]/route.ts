@@ -6,14 +6,16 @@ import { generateVideoSpec, GenerationError } from "@/lib/ai";
 import { prisma } from "@/lib/prisma";
 import { getOwnedProject, parseSpec } from "@/lib/projects";
 import { isSafeMusicFile } from "@/remotion/music";
+import { TEMPLATE_IDS } from "@/remotion/templates";
+import type { VideoSpec } from "@/remotion/schema";
 
 export const maxDuration = 300;
 
 type Ctx = { params: Promise<{ id: string }> };
 
 /**
- * Revise the project's video with a follow-up prompt ({ prompt }), or just
- * change its background music without the AI ({ music: "sunny-pop.mp3" | "" }).
+ * Revise the project's video with a follow-up prompt ({ prompt }), or change
+ * its design without the AI ({ music?, template?, seed? }).
  */
 export async function PATCH(request: Request, { params }: Ctx) {
   const { user, response } = await apiUser();
@@ -22,11 +24,20 @@ export async function PATCH(request: Request, { params }: Ctx) {
   if (!project) return notFound();
 
   const body = await request.json().catch(() => null);
-  if (typeof body?.music === "string") {
-    if (body.music && !isSafeMusicFile(body.music)) {
-      return NextResponse.json({ error: "Unknown music track." }, { status: 400 });
+
+  // Design-only changes (no AI): music track, template, variation seed.
+  if (body && ("music" in body || "template" in body || "seed" in body || "sfx" in body) && !body.prompt && !body.brief && !body.referenceUrl) {
+    const spec = parseSpec(project.spec);
+    if (typeof body.music === "string") {
+      if (body.music && !isSafeMusicFile(body.music)) return NextResponse.json({ error: "Unknown music track." }, { status: 400 });
+      spec.music = body.music;
     }
-    const spec = { ...parseSpec(project.spec), music: body.music };
+    if (typeof body.template === "string") {
+      if (!(TEMPLATE_IDS as readonly string[]).includes(body.template)) return NextResponse.json({ error: "Unknown template." }, { status: 400 });
+      spec.template = body.template as VideoSpec["template"];
+    }
+    if (typeof body.seed === "number" && Number.isFinite(body.seed)) spec.seed = Math.abs(Math.floor(body.seed)) % 2 ** 31;
+    if (typeof body.sfx === "boolean") spec.sfx = body.sfx;
     await prisma.project.update({ where: { id: project.id }, data: { spec: JSON.stringify(spec) } });
     return NextResponse.json({ spec });
   }
@@ -35,7 +46,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
   if ("error" in req) return NextResponse.json({ error: req.error }, { status: 400 });
 
   try {
-    const spec = await generateVideoSpec(req.text, parseSpec(project.spec));
+    const spec = await generateVideoSpec(req.text, parseSpec(project.spec), { userId: user.id });
     await prisma.project.update({
       where: { id: project.id },
       data: { title: spec.title, spec: JSON.stringify(spec) },

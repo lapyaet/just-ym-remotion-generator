@@ -71,10 +71,18 @@ export function resolveGenerated(
     return { ...rest, discount: discountIsStated(s.discount, allowedDiscounts) ? s.discount : "", imageUrl, products };
   });
 
+  // The opening scene should never be photo-less: borrow the first photo in the reel.
+  const firstPhoto = scenes.find((s) => s.imageUrl)?.imageUrl ?? "";
+  for (const s of scenes) if (s.type === "hook" && !s.imageUrl) s.imageUrl = firstPhoto;
+
   const hasPrices = scenes.some((s) => s.products.some((p) => p.priceText));
   const month = new Date().toLocaleString("en-US", { month: "short", year: "numeric" });
   return normalizeSpec({
     version: 2,
+    template: gen.template,
+    // A fresh seed every generation, so even the same template looks different.
+    seed: Math.floor(Math.random() * 2 ** 31),
+    sfx: true,
     title: gen.title,
     aspectRatio: gen.aspectRatio,
     priceNote: hasPrices ? `*Prices shown on justym.me, ${month}. Subject to change.` : "",
@@ -91,6 +99,7 @@ export function toGenerated(spec: VideoSpec, choices: Choice[]): GeneratedVideo 
   return {
     title: spec.title,
     aspectRatio: spec.aspectRatio,
+    template: spec.template,
     music: MUSIC_TRACKS.find((t) => t.file === spec.music)?.id ?? (spec.music ? MUSIC_TRACKS[0].id : "none"),
     scenes: spec.scenes.map(({ imageUrl, products, ...rest }) => ({
       ...rest,

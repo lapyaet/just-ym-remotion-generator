@@ -14,6 +14,9 @@ const DREAM_WORLD = {
 // Used by Remotion Studio (`npm run studio`) and as the default props.
 const sampleSpec: VideoSpec = {
   version: 2,
+  template: "calling",
+  seed: 1,
+  sfx: true,
   title: "Bangkok is Calling",
   aspectRatio: "9:16",
   priceNote: "*Prices shown on justym.me. Subject to change.",
@@ -29,7 +32,7 @@ const sampleSpec: VideoSpec = {
       imageUrl: DREAM_WORLD.imageUrl,
       products: [DREAM_WORLD],
       durationInSeconds: 3.5,
-      transition: "orange-wipe",
+      transition: "signature",
     }),
     emptyScene("payment", { headline: "ဘတ်ငွေ လဲစရာ မလို!", highlight: "KPay · AYA Pay နဲ့ ချက်ချင်း", subtitle: "Pay instantly with Myanmar wallets", durationInSeconds: 3.5 }),
     emptyScene("outro", { headline: "Your Moment.", highlight: "Book now on justym.me", durationInSeconds: 3.5, transition: "cut" }),
