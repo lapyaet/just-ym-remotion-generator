@@ -1,0 +1,27 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      DATABASE_URL: "file:./data/app.db"
+    volumes:
+      - ./data:/app/data # SQLite database
+      - ./storage:/app/storage # rendered MP4s
+
+  # Optional local open-source model server (CPU). Start with:
+  #   docker compose --profile local-ai up -d ollama
+  #   docker compose exec ollama ollama pull qwen2.5:3b
+  # Then set LLM_BASE_URL=http://localhost:11434/v1 (or http://ollama:11434/v1
+  # when the app also runs in Docker) and LLM_MODEL=qwen2.5:3b.
+  ollama:
+    image: ollama/ollama
+    profiles: ["local-ai"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+
+volumes:
+  ollama:

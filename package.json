@@ -6,20 +6,37 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "studio": "remotion studio src/remotion/index.ts",
+    "db:migrate": "prisma migrate dev",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
+    "@prisma/adapter-better-sqlite3": "^7.10.1",
+    "@prisma/client": "^7.10.1",
+    "@remotion/bundler": "4.0.543",
+    "@remotion/player": "4.0.543",
+    "@remotion/renderer": "4.0.543",
+    "better-auth": "^1.7.21",
+    "better-sqlite3": "^13.1.1",
     "next": "16.4.6",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "remotion": "4.0.543",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@remotion/cli": "4.0.543",
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^18.0.10",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
+    "prisma": "^7.10.1",
     "tailwindcss": "4.3.3",
     "typescript": "^5"
   }

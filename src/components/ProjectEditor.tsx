@@ -1,0 +1,215 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Player } from "@remotion/player";
+import { GeneratedVideo } from "@/remotion/GeneratedVideo";
+import { DIMENSIONS, FPS, totalFrames, type VideoSpec } from "@/remotion/schema";
+
+type RenderRow = {
+  id: string;
+  status: string;
+  progress: number;
+  error: string | null;
+  createdAt: string;
+};
+
+export function ProjectEditor({
+  projectId,
+  prompt,
+  initialSpec,
+  initialRenders,
+}: {
+  projectId: string;
+  prompt: string;
+  initialSpec: VideoSpec;
+  initialRenders: RenderRow[];
+}) {
+  const router = useRouter();
+  const [spec, setSpec] = useState(initialSpec);
+  const [renders, setRenders] = useState(initialRenders);
+  const [revision, setRevision] = useState("");
+  const [busy, setBusy] = useState<null | "revise" | "render" | "delete">(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const { width, height } = DIMENSIONS[spec.aspectRatio];
+  const active = renders.find((r) => r.status === "queued" || r.status === "rendering");
+
+  // Poll the active render until it finishes.
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(async () => {
+      const res = await fetch(`/api/renders/${active.id}`);
+      if (!res.ok) return;
+      const row: RenderRow = await res.json();
+      setRenders((rs) => rs.map((r) => (r.id === row.id ? row : r)));
+    }, 1500);
+    return () => clearInterval(timer);
+  }, [active?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function call(kind: "revise" | "render" | "delete", init: RequestInit, url: string) {
+    setBusy(kind);
+    setError(null);
+    try {
+      const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Request failed");
+      return data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Request failed");
+      return null;
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function revise(e: React.FormEvent) {
+    e.preventDefault();
+    const data = await call("revise", { method: "PATCH", body: JSON.stringify({ prompt: revision }) }, `/api/projects/${projectId}`);
+    if (data) {
+      setSpec(data.spec);
+      setRevision("");
+    }
+  }
+
+  async function render() {
+    const data = await call("render", { method: "POST" }, `/api/projects/${projectId}/render`);
+    if (data && !renders.some((r) => r.id === data.renderId)) {
+      setRenders((rs) => [
+        { id: data.renderId, status: "queued", progress: 0, error: null, createdAt: new Date().toISOString() },
+        ...rs,
+      ]);
+    }
+  }
+
+  async function remove() {
+    if (!confirm("Delete this project and all of its renders?")) return;
+    const data = await call("delete", { method: "DELETE" }, `/api/projects/${projectId}`);
+    if (data) {
+      router.push("/dashboard");
+      router.refresh();
+    }
+  }
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
+      <section>
+        <h1 className="text-2xl font-semibold">{spec.title}</h1>
+        <p className="mt-1 line-clamp-2 text-sm text-zinc-400">“{prompt}”</p>
+
+        <div
+          className="mt-5 overflow-hidden rounded-xl border border-white/10 bg-black"
+          style={{ maxWidth: spec.aspectRatio === "16:9" ? "100%" : 420 }}
+        >
+          <Player
+            component={GeneratedVideo}
+            inputProps={{ spec }}
+            durationInFrames={Math.max(1, totalFrames(spec))}
+            fps={FPS}
+            compositionWidth={width}
+            compositionHeight={height}
+            style={{ width: "100%", aspectRatio: `${width} / ${height}` }}
+            controls
+            loop
+            autoPlay
+            acknowledgeRemotionLicense
+          />
+        </div>
+
+        <form onSubmit={revise} className="mt-6 flex gap-2">
+          <input
+            value={revision}
+            onChange={(e) => setRevision(e.target.value)}
+            placeholder="Ask for changes, e.g. “make it warmer and add a stats scene”"
+            className="flex-1 rounded-full border border-white/10 bg-white/[.04] px-4 py-2.5 text-sm outline-none focus:border-indigo-400"
+            disabled={busy !== null}
+            maxLength={2000}
+          />
+          <button
+            type="submit"
+            disabled={busy !== null || revision.trim().length < 3}
+            className="rounded-full bg-white/10 px-5 text-sm font-medium hover:bg-white/20 disabled:opacity-50"
+          >
+            {busy === "revise" ? "Revising…" : "Revise"}
+          </button>
+        </form>
+        {error ? <p className="mt-3 text-sm text-red-400">{error}</p> : null}
+      </section>
+
+      <aside className="space-y-6">
+        <div className="rounded-xl border border-white/10 p-4">
+          <h2 className="font-medium">Export</h2>
+          <p className="mt-1 text-xs text-zinc-400">
+            {spec.aspectRatio} · {width}×{height} · {(totalFrames(spec) / FPS).toFixed(1)}s · {spec.scenes.length} scenes
+          </p>
+          <button
+            type="button"
+            onClick={render}
+            disabled={busy !== null || !!active}
+            className="mt-4 w-full rounded-full bg-indigo-500 py-2.5 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
+          >
+            {active ? `Rendering… ${Math.round(active.progress * 100)}%` : "Render MP4"}
+          </button>
+
+          <ul className="mt-4 space-y-2">
+            {renders.map((r) => (
+              <li key={r.id} className="rounded-lg bg-white/[.03] px-3 py-2 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-zinc-400">{new Date(r.createdAt).toLocaleString()}</span>
+                  {r.status === "done" ? (
+                    <span className="flex gap-3">
+                      <a className="text-indigo-300 hover:underline" href={`/api/renders/${r.id}/file`} target="_blank">
+                        View
+                      </a>
+                      <a className="text-indigo-300 hover:underline" href={`/api/renders/${r.id}/file?download=1`}>
+                        Download
+                      </a>
+                    </span>
+                  ) : r.status === "error" ? (
+                    <span className="text-red-400">Failed</span>
+                  ) : (
+                    <span className="text-amber-300">
+                      {r.status === "queued" ? "Queued" : `${Math.round(r.progress * 100)}%`}
+                    </span>
+                  )}
+                </div>
+                {r.status === "rendering" || r.status === "queued" ? (
+                  <div className="mt-2 h-1 overflow-hidden rounded bg-white/10">
+                    <div className="h-full bg-indigo-400 transition-all" style={{ width: `${r.progress * 100}%` }} />
+                  </div>
+                ) : null}
+                {r.error ? <p className="mt-1 line-clamp-3 text-red-400/80">{r.error}</p> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="rounded-xl border border-white/10 p-4">
+          <h2 className="font-medium">Scenes</h2>
+          <ol className="mt-3 space-y-2 text-sm">
+            {spec.scenes.map((s, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="w-5 shrink-0 text-zinc-500">{i + 1}</span>
+                <span className="flex-1">
+                  <span className="text-zinc-200">{s.emoji} {s.heading}</span>
+                  <span className="block text-xs text-zinc-500">
+                    {s.type} · {s.animation} · {s.durationInSeconds}s
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <button
+          type="button"
+          onClick={remove}
+          disabled={busy !== null}
+          className="text-xs text-zinc-500 hover:text-red-400"
+        >
+          Delete project
+        </button>
+      </aside>
+    </div>
+  );
+}
