@@ -1,13 +1,14 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { normalizeSpec, VideoSpecSchema, type VideoSpec } from "@/remotion/schema";
-import { buildUserContent, GenerationError, SYSTEM_PROMPT } from "./prompt";
+import { GeneratedVideoSchema, type GeneratedVideo } from "@/remotion/schema";
+import type { Choice } from "./resolve";
+import { buildUserContent, GenerationError, getSystemPrompt } from "./prompt";
 
 let client: Anthropic | undefined;
 const getClient = () => (client ??= new Anthropic()); // reads ANTHROPIC_API_KEY
 
-export async function generateWithClaude(prompt: string, previous?: VideoSpec): Promise<VideoSpec> {
+export async function generateWithClaude(prompt: string, previous: GeneratedVideo | undefined, choices: Choice[]): Promise<GeneratedVideo> {
   let response;
   try {
     response = await getClient().beta.messages.parse({
@@ -19,10 +20,10 @@ export async function generateWithClaude(prompt: string, previous?: VideoSpec): 
       fallbacks: "default",
       output_config: {
         effort: "medium",
-        format: betaZodOutputFormat(VideoSpecSchema),
+        format: betaZodOutputFormat(GeneratedVideoSchema),
       },
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildUserContent(prompt, previous) }],
+      system: getSystemPrompt(),
+      messages: [{ role: "user", content: buildUserContent(prompt, previous, choices) }],
     });
   } catch (error) {
     if (error instanceof Anthropic.RateLimitError) {
@@ -46,5 +47,5 @@ export async function generateWithClaude(prompt: string, previous?: VideoSpec): 
   if (!response.parsed_output) {
     throw new GenerationError("Claude returned an invalid video spec. Please try again.");
   }
-  return normalizeSpec(response.parsed_output);
+  return response.parsed_output;
 }

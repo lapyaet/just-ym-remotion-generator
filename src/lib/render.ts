@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { prisma } from "./prisma";
+import { localizeImages } from "./render-assets";
 import { COMPOSITION_ID, type VideoSpec } from "@/remotion/schema";
 
 export const RENDER_DIR = path.join(process.cwd(), "storage", "renders");
@@ -38,7 +39,8 @@ async function runRender(renderId: string, spec: VideoSpec) {
     await fs.mkdir(RENDER_DIR, { recursive: true });
 
     const serveUrl = await getServeUrl();
-    const inputProps = { spec };
+    // Photos are downloaded once up front so the render itself is offline.
+    const inputProps = { spec: await localizeImages(spec, serveUrl) };
     const composition = await selectComposition({ serveUrl, id: COMPOSITION_ID, inputProps });
     const outputLocation = path.join(RENDER_DIR, `${renderId}.mp4`);
 
@@ -49,6 +51,7 @@ async function runRender(renderId: string, spec: VideoSpec) {
       codec: "h264",
       outputLocation,
       inputProps,
+      timeoutInMilliseconds: 90_000,
       onProgress: ({ progress }) => {
         const now = Date.now();
         if (now - lastWrite < 1000) return; // throttle DB writes

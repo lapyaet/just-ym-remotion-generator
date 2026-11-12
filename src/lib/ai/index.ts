@@ -1,8 +1,10 @@
 import "server-only";
-import type { VideoSpec } from "@/remotion/schema";
+import type { GeneratedVideo, VideoSpec } from "@/remotion/schema";
+import { getCatalog } from "@/lib/justym-catalog";
 import { generateWithClaude } from "./claude";
-import { buildDemoSpec } from "./demo";
+import { buildDemoVideo } from "./demo";
 import { generateWithOpenModel, openModelLabel } from "./open-model";
+import { buildChoices, resolveGenerated, toGenerated } from "./resolve";
 
 export { GenerationError } from "./prompt";
 
@@ -29,13 +31,22 @@ export function providerLabel() {
 }
 
 /** Prompt -> video spec. Pass `previous` to revise an existing video. */
-export function generateVideoSpec(prompt: string, previous?: VideoSpec): Promise<VideoSpec> {
+export async function generateVideoSpec(prompt: string, previous?: VideoSpec): Promise<VideoSpec> {
+  const catalog = await getCatalog();
+  const context = [prompt, previous?.title, ...(previous?.scenes.flatMap((s) => [s.tag, s.location, ...s.products.map((p) => `${p.name} ${p.city}`)]) ?? [])].join(" ");
+  const choices = buildChoices(catalog, context, previous);
+  const previousGen = previous ? toGenerated(previous, choices) : undefined;
+
+  let generated: GeneratedVideo;
   switch (getProvider()) {
     case "open-model":
-      return generateWithOpenModel(prompt, previous);
+      generated = await generateWithOpenModel(prompt, previousGen, choices);
+      break;
     case "claude":
-      return generateWithClaude(prompt, previous);
+      generated = await generateWithClaude(prompt, previousGen, choices);
+      break;
     default:
-      return Promise.resolve(buildDemoSpec(prompt, previous));
+      generated = buildDemoVideo(prompt, previousGen, choices);
   }
+  return resolveGenerated(generated, choices, prompt, previous);
 }

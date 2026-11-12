@@ -22,6 +22,22 @@ npm run db:deploy           # creates the tables in your Postgres DB
 npm run dev                 # http://localhost:3000
 ```
 
+### Reference reels
+
+Paste a reel link in **🔗 Reference reel** when generating, and the new video copies its style. The AI only reads text, so the server reads the link first ([src/lib/reference-reel.ts](src/lib/reference-reel.ts)):
+
+| Link | What is read |
+|---|---|
+| Google Drive video, direct `.mp4`/`.mov`/`.webm`, pages with an `og:video` file | Title, plus **length, size/aspect ratio, frame rate and sound** from the file itself ([Mediabunny](https://mediabunny.dev), no download of the whole file) |
+| YouTube, TikTok, Vimeo | Title, creator, caption (official oEmbed; Vimeo also gives length and size) |
+| Instagram, Facebook, other pages | Title and description from the page's preview tags, when public |
+
+The AI then aims for a similar length, format, pace and structure, without copying the reference's text. Your typed instructions win over the reference. Private links, or pages behind a login, give little or nothing; the result page summary shows what was read. For safety, the server only fetches public internet hosts on ports 80/443 (no `localhost` or private IPs), checks every redirect, and limits download sizes.
+
+### Editing the AI instructions
+
+The instructions the AI follows (house style, language, scene structure, rules) live in [prompts/system.md](prompts/system.md). Edit that file to change how reels are written. HTML comments in it are not sent to the AI. In `npm run dev` changes apply to the next generation without a restart. On Vercel, commit and push; the file is deployed with the video routes (`outputFileTracingIncludes` in [next.config.ts](next.config.ts)).
+
 ### Choosing the AI
 
 All providers live in [src/lib/ai/](src/lib/ai/). The app picks one based on `.env`:
@@ -77,10 +93,43 @@ On a CPU without a GPU, generation can take a few minutes per video. Small model
 4. Add the authorized redirect URI `http://localhost:3000/api/auth/callback/google`, plus your production URL when you deploy.
 5. Copy the client ID and secret into `.env`.
 
+## Just YM reel format
+
+Videos follow the style of Just YM's own promo reels ("Bangkok is Calling", "Phuket is Calling"): 15–30 second vertical clips with full-screen travel photos, the logo tile in the corner, two-tone Burmese captions with English subtitles, live price cards, and orange circle-wipe transitions.
+
+| Scene | What it shows |
+|---|---|
+| `hook` | The logo stamps in the middle and flies to the corner, then "Hello" + **BANGKOK** pop in letter by letter |
+| `attraction` | Orange name pill, `@LOCATION`, a white price card (photo, name, live "From ฿1,000", ✓ Instant confirmation) and a two-line caption |
+| `caption` | A big "WORTH IT!" moment, or a two-line caption |
+| `deals` | A grid of 2–4 product cards, plus an "UP TO 63% OFF" sticker when the prompt states one |
+| `payment` | Orange scene: no-cash ฿ icon, KBZPay / AYA Pay / Wave Pay / MMQR, then "Payment successful!" |
+| `outro` | Logo, framed photo, "Your Moment.", the "Book now · justym.me →" pill and the waving mascot |
+
+**Where the data comes from**
+- [src/lib/justym-catalog.ts](src/lib/justym-catalog.ts) crawls the `/en` pages in https://www.justym.me/sitemap.xml, following `robots.txt`. Ticket pages give a product (name, city, photo, live price from the page's schema.org JSON-LD). Other pages give photos. The catalog is cached for 6 hours per server instance.
+- The AI receives the ~40 most relevant items as short ids (`p3`) and refers to them by id ([src/lib/ai/resolve.ts](src/lib/ai/resolve.ts)). The server fills in the real photo URLs and prices, so the AI can't invent images or prices.
+- Prices show as "From …" because the JSON-LD price is the lowest option. Scenes with prices carry a "*Prices shown on justym.me, <month>. Subject to change." note.
+- Discounts appear only when every number in them is stated in your prompt.
+
+**Brand assets** live in [public/brand/](public/brand/): `justym-logo.svg`, plus `mascot-body.png` and `mascot-arm.png` (copied from justym.me; the arm waves).
+
+**Music:** each reel gets background music that plays under the whole video, loops seamlessly, and fades in and out. The AI picks a track that fits the mood, and you can switch tracks or turn music off on the project page.
+
+| Track | Mood |
+|---|---|
+| Sunny Pop (`sunny-pop.mp3`) | Bright and happy: city trips, families |
+| Tropical Chill (`tropical-chill.mp3`) | Relaxed: beaches, islands, nature |
+| Festival Hype (`festival-hype.mp3`) | High energy: nightlife, theme parks, big deals |
+
+These are original tracks synthesised by [scripts/make-music.mjs](scripts/make-music.mjs) (drums, bass, chords and melody, no samples), so no licence is needed. Run `node scripts/make-music.mjs` to regenerate them after editing; it needs `ffmpeg` on your PATH for MP3 output. To add your own licensed track, put it in `public/music/` and list it in [src/remotion/music.ts](src/remotion/music.ts). Setting `VIDEO_MUSIC=file.mp3` in `.env` forces one track for every new video.
+
+**Fonts:** Poppins, Anton, Lilita One and Noto Sans Myanmar, loaded with `@remotion/google-fonts` (so Burmese renders the same in the preview and the MP4).
+
 ## Deploy to Vercel
 
 1. **Database:** in the Vercel project, open **Storage → Create Database → Neon** (free) and connect it. This sets `DATABASE_URL` and `DATABASE_URL_UNPOOLED`. SQLite does not work on Vercel, because the filesystem is read-only and resets between requests.
-2. **Tables:** copy those two values into your local `.env` and run `npm run db:deploy` once. Run it again after every schema change.
+2. **Tables:** these are created automatically on every deploy: [vercel.json](vercel.json) runs `prisma migrate deploy` before `next build`. If the build fails with a datasource or connection error, the database isn't connected yet.
 3. **Environment variables** (Settings → Environment Variables): `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL=https://<your-app>.vercel.app`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, plus your AI settings (`LLM_*` or `ANTHROPIC_API_KEY`). Redeploy after changing them.
 4. **Google OAuth client:** add `https://<your-app>.vercel.app` to *Authorized JavaScript origins* and `https://<your-app>.vercel.app/api/auth/callback/google` to *Authorized redirect URIs*.
 

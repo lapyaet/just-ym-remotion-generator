@@ -1,17 +1,38 @@
 import React from "react";
 import { Composition } from "remotion";
 import { GeneratedVideo } from "./GeneratedVideo";
-import { COMPOSITION_ID, DIMENSIONS, FPS, totalFrames, type VideoSpec } from "./schema";
+import { COMPOSITION_ID, DIMENSIONS, emptyScene, FPS, totalFrames, type VideoSpec } from "./schema";
 
-// Used by Remotion Studio (`npm run studio`) and by the server renderer.
+const DREAM_WORLD = {
+  name: "Dream World Bangkok",
+  city: "Bangkok",
+  imageUrl: "https://api.justym.me/file/image/product/media/696f24db9b2ac5b1393bb766_NNV2mPJK",
+  priceText: "฿1,000",
+  pageUrl: "https://www.justym.me/en/ticket/dream-world-bangkok/696f374de7f923b345648a3d",
+};
+
+// Used by Remotion Studio (`npm run studio`) and as the default props.
 const sampleSpec: VideoSpec = {
-  title: "Sample video",
-  aspectRatio: "16:9",
-  theme: { background: "#0f172a", primary: "#6366f1", accent: "#f59e0b", text: "#f8fafc", font: "sans" },
+  version: 2,
+  title: "Bangkok is Calling",
+  aspectRatio: "9:16",
+  priceNote: "*Prices shown on justym.me. Subject to change.",
+  music: "sunny-pop.mp3",
   scenes: [
-    { type: "title", heading: "Make videos from a prompt", body: "", items: [], emoji: "🎬", durationInSeconds: 3, animation: "zoom", background: "radial" },
-    { type: "bullets", heading: "How it works", body: "", items: ["Describe your video", "Claude writes the script", "Remotion renders the MP4"], emoji: "", durationInSeconds: 5, animation: "slide-up", background: "grid" },
-    { type: "outro", heading: "Try it now", body: "Sign in with Google to start", items: [], emoji: "🚀", durationInSeconds: 3, animation: "fade", background: "gradient" },
+    emptyScene("hook", { kicker: "Hello", headline: "BANGKOK", subtitle: "Your trip starts here", imageUrl: DREAM_WORLD.imageUrl }),
+    emptyScene("attraction", {
+      tag: "DREAM WORLD",
+      location: "@BANGKOK",
+      headline: "Bangkok ရဲ့ နာမည်ကြီး",
+      highlight: "Dream World လက်မှတ်",
+      subtitle: "Bangkok's famous theme park",
+      imageUrl: DREAM_WORLD.imageUrl,
+      products: [DREAM_WORLD],
+      durationInSeconds: 3.5,
+      transition: "orange-wipe",
+    }),
+    emptyScene("payment", { headline: "ဘတ်ငွေ လဲစရာ မလို!", highlight: "KPay · AYA Pay နဲ့ ချက်ချင်း", subtitle: "Pay instantly with Myanmar wallets", durationInSeconds: 3.5 }),
+    emptyScene("outro", { headline: "Your Moment.", highlight: "Book now on justym.me", durationInSeconds: 3.5, transition: "cut" }),
   ],
 };
 
@@ -20,12 +41,12 @@ export const RemotionRoot: React.FC = () => (
     id={COMPOSITION_ID}
     component={GeneratedVideo}
     fps={FPS}
-    width={1920}
-    height={1080}
+    width={1080}
+    height={1920}
     durationInFrames={totalFrames(sampleSpec)}
     defaultProps={{ spec: sampleSpec }}
     calculateMetadata={({ props }) => ({
-      durationInFrames: Math.max(1, totalFrames(props.spec)),
+      durationInFrames: totalFrames(props.spec),
       ...DIMENSIONS[props.spec.aspectRatio],
     })}
   />

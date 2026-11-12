@@ -1,7 +1,8 @@
 import "server-only";
 import { z } from "zod";
-import { normalizeSpec, VideoSpecSchema, type VideoSpec } from "@/remotion/schema";
-import { buildUserContent, GenerationError, SYSTEM_PROMPT } from "./prompt";
+import { GeneratedVideoSchema, type GeneratedVideo } from "@/remotion/schema";
+import type { Choice } from "./resolve";
+import { buildUserContent, GenerationError, getSystemPrompt } from "./prompt";
 
 /**
  * Open-source / open-weight models through any OpenAI-compatible
@@ -13,7 +14,7 @@ import { buildUserContent, GenerationError, SYSTEM_PROMPT } from "./prompt";
  *   LLM_API_KEY   optional for local servers
  */
 
-const JSON_SCHEMA: Record<string, unknown> = { ...z.toJSONSchema(VideoSpecSchema) };
+const JSON_SCHEMA: Record<string, unknown> = { ...z.toJSONSchema(GeneratedVideoSchema) };
 delete JSON_SCHEMA.$schema;
 
 type Message = { role: "system" | "user" | "assistant"; content: string };
@@ -22,29 +23,29 @@ export function openModelLabel() {
   return process.env.LLM_MODEL || "open model";
 }
 
-export async function generateWithOpenModel(prompt: string, previous?: VideoSpec): Promise<VideoSpec> {
+export async function generateWithOpenModel(prompt: string, previous: GeneratedVideo | undefined, choices: Choice[]): Promise<GeneratedVideo> {
   const messages: Message[] = [
     {
       role: "system",
-      content: `${SYSTEM_PROMPT}\n\nReply with only a JSON object that matches this JSON Schema, with no other text:\n${JSON.stringify(JSON_SCHEMA)}`,
+      content: `${getSystemPrompt()}\n\nReply with only a JSON object that matches this JSON Schema, with no other text:\n${JSON.stringify(JSON_SCHEMA)}`,
     },
-    { role: "user", content: buildUserContent(prompt, previous) },
+    { role: "user", content: buildUserContent(prompt, previous, choices) },
   ];
 
   // Small models sometimes return invalid JSON; give them one retry with the error.
   for (let attempt = 0; attempt < 2; attempt++) {
     const text = await chat(messages);
     const result = parseSpec(text);
-    if (result.ok) return normalizeSpec(result.spec);
+    if (result.ok) return result.spec;
     messages.push(
       { role: "assistant", content: text },
       { role: "user", content: `That was not valid: ${result.error}. Reply again with only the corrected JSON object.` },
     );
   }
-  throw new GenerationError("The open-source model returned an invalid video spec twice. Try again or use a larger model.");
+  throw new GenerationError("The open-source model returned an invalid video twice. Try again or use a larger model.");
 }
 
-function parseSpec(text: string): { ok: true; spec: VideoSpec } | { ok: false; error: string } {
+function parseSpec(text: string): { ok: true; spec: GeneratedVideo } | { ok: false; error: string } {
   const cleaned = text
     .replace(/<think>[\s\S]*?<\/think>/g, "") // reasoning models (Qwen3, DeepSeek-R1)
     .replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, "")
@@ -58,7 +59,7 @@ function parseSpec(text: string): { ok: true; spec: VideoSpec } | { ok: false; e
   } catch (e) {
     return { ok: false, error: `invalid JSON (${(e as Error).message})` };
   }
-  const parsed = VideoSpecSchema.safeParse(json);
+  const parsed = GeneratedVideoSchema.safeParse(json);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues.slice(0, 5).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
   }

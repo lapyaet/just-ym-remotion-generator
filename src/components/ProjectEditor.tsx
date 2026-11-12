@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Player } from "@remotion/player";
 import { GeneratedVideo } from "@/remotion/GeneratedVideo";
 import { DIMENSIONS, FPS, totalFrames, type VideoSpec } from "@/remotion/schema";
+import { MUSIC_TRACKS } from "@/remotion/music";
+import { GeneratingOverlay } from "./GeneratingOverlay";
 
 type RenderRow = {
   id: string;
@@ -31,7 +33,7 @@ export function ProjectEditor({
   const [spec, setSpec] = useState(initialSpec);
   const [renders, setRenders] = useState(initialRenders);
   const [revision, setRevision] = useState("");
-  const [busy, setBusy] = useState<null | "revise" | "render" | "delete">(null);
+  const [busy, setBusy] = useState<null | "revise" | "render" | "delete" | "music">(null);
   const [error, setError] = useState<string | null>(null);
 
   const { width, height } = DIMENSIONS[spec.aspectRatio];
@@ -49,7 +51,7 @@ export function ProjectEditor({
     return () => clearInterval(timer);
   }, [active?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function call(kind: "revise" | "render" | "delete", init: RequestInit, url: string) {
+  async function call(kind: "revise" | "render" | "delete" | "music", init: RequestInit, url: string) {
     setBusy(kind);
     setError(null);
     try {
@@ -74,6 +76,13 @@ export function ProjectEditor({
     }
   }
 
+  async function changeMusic(music: string) {
+    const previous = spec;
+    setSpec({ ...spec, music }); // update the preview right away
+    const data = await call("music", { method: "PATCH", body: JSON.stringify({ music }) }, `/api/projects/${projectId}`);
+    if (!data) setSpec(previous);
+  }
+
   async function render() {
     const data = await call("render", { method: "POST" }, `/api/projects/${projectId}/render`);
     if (data && !renders.some((r) => r.id === data.renderId)) {
@@ -95,6 +104,7 @@ export function ProjectEditor({
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
+      {busy === "revise" ? <GeneratingOverlay title="Revising your video" /> : null}
       <section>
         <h1 className="text-2xl font-semibold">{spec.title}</h1>
         <p className="mt-1 line-clamp-2 text-sm text-zinc-400">“{prompt}”</p>
@@ -114,6 +124,7 @@ export function ProjectEditor({
             controls
             loop
             autoPlay
+            showVolumeControls
             acknowledgeRemotionLicense
           />
         </div>
@@ -122,7 +133,7 @@ export function ProjectEditor({
           <input
             value={revision}
             onChange={(e) => setRevision(e.target.value)}
-            placeholder="Ask for changes, e.g. “make it warmer and add a stats scene”"
+            placeholder="Ask for changes, e.g. “add Safari World and make it faster”"
             className="flex-1 rounded-full border border-white/10 bg-white/[.04] px-4 py-2.5 text-sm outline-none focus:border-indigo-400"
             disabled={busy !== null}
             maxLength={2000}
@@ -135,6 +146,27 @@ export function ProjectEditor({
             {busy === "revise" ? "Revising…" : "Revise"}
           </button>
         </form>
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="mr-1 text-zinc-400">🎵 Music</span>
+          {[...MUSIC_TRACKS.map((t) => ({ file: t.file, label: t.label })), { file: "", label: "No music" }].map((t) => (
+            <button
+              key={t.label}
+              type="button"
+              onClick={() => changeMusic(t.file)}
+              disabled={busy !== null || spec.music === t.file}
+              className={
+                spec.music === t.file
+                  ? "rounded-full bg-orange-400 px-3 py-1 font-medium text-zinc-950"
+                  : "rounded-full border border-white/15 px-3 py-1 text-zinc-300 hover:bg-white/10 disabled:opacity-50"
+              }
+            >
+              {t.label}
+            </button>
+          ))}
+          {spec.music && !MUSIC_TRACKS.some((t) => t.file === spec.music) ? (
+            <span className="rounded-full bg-orange-400 px-3 py-1 font-medium text-zinc-950">{spec.music}</span>
+          ) : null}
+        </div>
         {error ? <p className="mt-3 text-sm text-red-400">{error}</p> : null}
       </section>
 
@@ -200,9 +232,9 @@ export function ProjectEditor({
               <li key={i} className="flex gap-3">
                 <span className="w-5 shrink-0 text-zinc-500">{i + 1}</span>
                 <span className="flex-1">
-                  <span className="text-zinc-200">{s.emoji} {s.heading}</span>
+                  <span className="text-zinc-200">{s.tag || s.headline} {s.highlight ? <span className="text-orange-300">{s.highlight}</span> : null}</span>
                   <span className="block text-xs text-zinc-500">
-                    {s.type} · {s.animation} · {s.durationInSeconds}s
+                    {s.type} · {s.durationInSeconds}s{s.products.length ? ` · ${s.products.map((p) => p.name).join(", ")}` : ""}
                   </span>
                 </span>
               </li>

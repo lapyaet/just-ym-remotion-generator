@@ -1,28 +1,41 @@
 import fs from "node:fs/promises";
 import { NextResponse } from "next/server";
-import { apiUser, notFound, readPrompt } from "@/lib/api";
+import { apiUser, notFound } from "@/lib/api";
+import { buildVideoRequest } from "@/lib/video-request";
 import { generateVideoSpec, GenerationError } from "@/lib/ai";
 import { prisma } from "@/lib/prisma";
 import { getOwnedProject, parseSpec } from "@/lib/projects";
+import { isSafeMusicFile } from "@/remotion/music";
 
 export const maxDuration = 300;
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** Revise the project's video with a follow-up prompt. */
+/**
+ * Revise the project's video with a follow-up prompt ({ prompt }), or just
+ * change its background music without the AI ({ music: "sunny-pop.mp3" | "" }).
+ */
 export async function PATCH(request: Request, { params }: Ctx) {
   const { user, response } = await apiUser();
   if (!user) return response;
   const project = await getOwnedProject((await params).id, user.id);
   if (!project) return notFound();
 
-  const prompt = readPrompt(await request.json().catch(() => null));
-  if (!prompt) {
-    return NextResponse.json({ error: "Prompt must be 3-2000 characters." }, { status: 400 });
+  const body = await request.json().catch(() => null);
+  if (typeof body?.music === "string") {
+    if (body.music && !isSafeMusicFile(body.music)) {
+      return NextResponse.json({ error: "Unknown music track." }, { status: 400 });
+    }
+    const spec = { ...parseSpec(project.spec), music: body.music };
+    await prisma.project.update({ where: { id: project.id }, data: { spec: JSON.stringify(spec) } });
+    return NextResponse.json({ spec });
   }
 
+  const req = await buildVideoRequest(body);
+  if ("error" in req) return NextResponse.json({ error: req.error }, { status: 400 });
+
   try {
-    const spec = await generateVideoSpec(prompt, parseSpec(project.spec));
+    const spec = await generateVideoSpec(req.text, parseSpec(project.spec));
     await prisma.project.update({
       where: { id: project.id },
       data: { title: spec.title, spec: JSON.stringify(spec) },

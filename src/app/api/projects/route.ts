@@ -1,24 +1,23 @@
 import { NextResponse } from "next/server";
-import { apiUser, readPrompt } from "@/lib/api";
+import { apiUser } from "@/lib/api";
+import { buildVideoRequest } from "@/lib/video-request";
 import { generateVideoSpec, GenerationError } from "@/lib/ai";
 import { prisma } from "@/lib/prisma";
 
 export const maxDuration = 300;
 
-/** Create a new project: prompt -> AI -> video spec. */
+/** Create a new project: prompt / attached .md brief / reference reel link -> AI -> video spec. */
 export async function POST(request: Request) {
   const { user, response } = await apiUser();
   if (!user) return response;
 
-  const prompt = readPrompt(await request.json().catch(() => null));
-  if (!prompt) {
-    return NextResponse.json({ error: "Prompt must be 3-2000 characters." }, { status: 400 });
-  }
+  const req = await buildVideoRequest(await request.json().catch(() => null));
+  if ("error" in req) return NextResponse.json({ error: req.error }, { status: 400 });
 
   try {
-    const spec = await generateVideoSpec(prompt);
+    const spec = await generateVideoSpec(req.text);
     const project = await prisma.project.create({
-      data: { userId: user.id, prompt, title: spec.title, spec: JSON.stringify(spec) },
+      data: { userId: user.id, prompt: req.summary, title: spec.title, spec: JSON.stringify(spec) },
     });
     return NextResponse.json({ id: project.id });
   } catch (error) {

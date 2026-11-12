@@ -11,7 +11,7 @@ export default function DashboardPage() {
     <div className="mx-auto max-w-6xl px-4 py-10">
       <h1 className="text-2xl font-semibold">Create a video</h1>
       <p className="mt-1 text-sm text-zinc-400">
-        Describe the topic, tone, colors or format. Mention “vertical” to get a 9:16 video for reels or shorts.
+        Describe the destination and attractions. Videos are Just YM reels (9:16) with live prices from justym.me; mention a discount only if it is real.
       </p>
       <Suspense>
         <DemoBanner />
