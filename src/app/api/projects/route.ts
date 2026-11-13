@@ -3,6 +3,7 @@ import { apiUser } from "@/lib/api";
 import { buildVideoRequest } from "@/lib/video-request";
 import { generateVideoSpec, GenerationError } from "@/lib/ai";
 import { prisma } from "@/lib/prisma";
+import { getUsage, limitMessage, recordGeneration, usageJson } from "@/lib/usage";
 
 export const maxDuration = 300;
 
@@ -10,6 +11,11 @@ export const maxDuration = 300;
 export async function POST(request: Request) {
   const { user, response } = await apiUser();
   if (!user) return response;
+
+  const usage = await getUsage(user);
+  if (usage.remaining <= 0) {
+    return NextResponse.json({ error: limitMessage(usage), usage: usageJson(usage) }, { status: 429 });
+  }
 
   const req = await buildVideoRequest(await request.json().catch(() => null));
   if ("error" in req) return NextResponse.json({ error: req.error }, { status: 400 });
@@ -19,6 +25,7 @@ export async function POST(request: Request) {
     const project = await prisma.project.create({
       data: { userId: user.id, prompt: req.summary, title: spec.title, spec: JSON.stringify(spec) },
     });
+    await recordGeneration(user.id, "create");
     return NextResponse.json({ id: project.id });
   } catch (error) {
     if (error instanceof GenerationError) {

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GeneratingOverlay } from "./GeneratingOverlay";
+import { UsageMeter, useUsage } from "./UsageMeter";
 
 const EXAMPLES = [
   "Bangkok is Calling: Dream World, Safari World and a dinner cruise, pay with KBZPay",
@@ -10,7 +11,9 @@ const EXAMPLES = [
   "Before you leave Singapore: Gardens by the Bay, Universal Studios and Wings of Time",
 ];
 
-const MAX_BRIEF_CHARS = 12_000; // keep in sync with src/lib/api.ts
+const MAX_BRIEF_CHARS = 200_000; // keep in sync with MAX_UPLOAD_CHARS in src/lib/brief.ts
+/** Above this size the server condenses the brief to its key lines for the AI. */
+const LONG_BRIEF_CHARS = 8_000;
 const ACCEPT = ".md,.markdown,.txt,text/markdown,text/plain";
 
 export type Brief = { name: string; text: string };
@@ -18,7 +21,7 @@ export type Brief = { name: string; text: string };
 /** Read a .md/.txt file from the user's device into a Brief, or return an error. */
 export async function readBriefFile(file: File): Promise<Brief | { error: string }> {
   if (!/\.(md|markdown|txt)$/i.test(file.name)) return { error: "Please choose a Markdown (.md) or text file." };
-  if (file.size > 200_000) return { error: "That file is too large (max 200 KB)." };
+  if (file.size > 1_000_000) return { error: "That file is too large (max 1 MB)." };
   const text = (await file.text()).trim();
   if (!text) return { error: "That file is empty." };
   if (text.length > MAX_BRIEF_CHARS) {
@@ -36,6 +39,7 @@ export function PromptForm() {
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const usage = useUsage();
 
   async function attach(file: File | undefined) {
     if (!file) return;
@@ -57,6 +61,7 @@ export function PromptForm() {
         body: JSON.stringify({ prompt, brief: brief?.text, briefName: brief?.name, referenceUrl: referenceUrl.trim() || undefined }),
       });
       const data = await res.json();
+      if (data.usage) usage.set(data.usage);
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
       router.push(`/projects/${data.id}`); // overlay stays up until the project page loads
     } catch (err) {
@@ -66,7 +71,7 @@ export function PromptForm() {
   }
 
   const referenceOk = !referenceUrl.trim() || /^(https?:\/\/)?[\w-]+(\.[\w-]+)+\S*$/i.test(referenceUrl.trim());
-  const canSubmit = !loading && referenceOk && (prompt.trim().length >= 3 || brief !== null || referenceUrl.trim().length > 0);
+  const canSubmit = !loading && !usage.blocked && referenceOk && (prompt.trim().length >= 3 || brief !== null || referenceUrl.trim().length > 0);
 
   return (
     <form onSubmit={submit} className="space-y-3">
@@ -111,6 +116,7 @@ export function PromptForm() {
           {brief ? (
             <span className="inline-flex items-center gap-2 rounded-full bg-orange-400/15 px-3 py-1 text-xs text-orange-200">
               📄 {brief.name} · {brief.text.length.toLocaleString()} chars
+              {brief.text.length > LONG_BRIEF_CHARS ? <span className="text-orange-300/80">· long: key points will be used</span> : null}
               <button type="button" onClick={() => setBrief(null)} aria-label="Remove file" className="text-orange-200/70 hover:text-white">
                 ✕
               </button>
@@ -160,16 +166,17 @@ export function PromptForm() {
           </button>
         ))}
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <button
           type="submit"
           disabled={!canSubmit}
-          className="rounded-full bg-orange-500 px-6 py-2.5 font-medium text-white hover:bg-orange-400 disabled:opacity-50"
+          className="whitespace-nowrap rounded-full bg-orange-500 px-6 py-2.5 font-medium text-white hover:bg-orange-400 disabled:opacity-50"
         >
-          {loading ? "Generating…" : "Generate video"}
+          {loading ? "Generating…" : usage.blocked ? "Daily limit reached" : "Generate video"}
         </button>
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        <UsageMeter usage={usage.usage} />
       </div>
+      {error ? <p className="text-sm text-red-400">{error}</p> : null}
     </form>
   );
 }

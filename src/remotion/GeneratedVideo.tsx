@@ -7,7 +7,8 @@ import { ThemeProvider } from "./components";
 import { TemplateFX } from "./fx";
 import { SFX, type SfxName } from "./music";
 import { SceneView } from "./scenes";
-import { signatureTransition } from "./transitions";
+import { signatureTransition, zoomBlur } from "./transitions";
+import { BeatPulse, beatFrames, CutFlashes, StoryProgress } from "./modern";
 import { sceneTimeline, TRANSITION_FRAMES, type VideoSpec } from "./schema";
 import { getTemplate, type Template } from "./templates";
 import "./fonts";
@@ -18,7 +19,8 @@ export const GeneratedVideo: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
   return (
     <ThemeProvider value={{ t, seed: spec.seed, index: 0 }}>
       <AbsoluteFill style={{ backgroundColor: t.colors.bg }}>
-        <TransitionSeries>
+        <BeatPulse spec={spec} t={t}>
+          <TransitionSeries>
           {spec.scenes.flatMap((scene, i) => {
             const items = [
               <TransitionSeries.Sequence key={`s${i}`} durationInFrames={frames[i]} name={`${i + 1}. ${scene.type}`}>
@@ -32,14 +34,17 @@ export const GeneratedVideo: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
                 scene.transition === "signature" ? (
                   <TransitionSeries.Transition key={`t${i}`} timing={timing} presentation={signatureTransition(t, i)} />
                 ) : (
-                  <TransitionSeries.Transition key={`t${i}`} timing={timing} presentation={fade()} />
+                  <TransitionSeries.Transition key={`t${i}`} timing={timing} presentation={t.signature === "zoom" ? zoomBlur(0.3) : fade()} />
                 ),
               );
             }
             return items;
           })}
-        </TransitionSeries>
+          </TransitionSeries>
+        </BeatPulse>
+        {t.id === "pulse" ? <CutFlashes spec={spec} /> : null}
         <TemplateFX />
+        <StoryProgress spec={spec} t={t} />
         {spec.music ? <Music file={spec.music} /> : null}
         {spec.sfx ? <SoundEffects spec={spec} t={t} /> : null}
       </AbsoluteFill>
@@ -85,6 +90,11 @@ function soundCues(spec: VideoSpec, t: Template): Cue[] {
     const f = frames[i];
     // Scene key moments.
     if (scene.type === "hook") {
+      if (t.hook === "montage") {
+        const beat = Math.max(8, Math.round(beatFrames(spec)));
+        for (let k = 1; k < 8 && k * beat < f - 10; k++) add(s + k * beat, k <= 2 ? "click" : "swipe", 0.35);
+        add(s + beat * 2, "impact", 0.55);
+      }
       if (t.hook === "pop") {
         add(s + 24, "pop", 0.5);
         add(s + 26, "sparkle", 0.3);
@@ -107,6 +117,7 @@ function soundCues(spec: VideoSpec, t: Template): Cue[] {
     }
     if (scene.type === "payment") add(s + Math.round(f * 0.55), "ding", 0.5);
     if (scene.type === "outro") {
+      if (t.id === "pulse") add(s + Math.round(beatFrames(spec) * 3), "sparkle", 0.5);
       add(s - 46, "riser", 0.3);
       add(s + 2, t.id === "flash" || t.id === "calling" ? "impact" : "sparkle", 0.45);
     }

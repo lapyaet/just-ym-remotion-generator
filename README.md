@@ -22,6 +22,12 @@ npm run db:deploy           # creates the tables in your Postgres DB
 npm run dev                 # http://localhost:3000
 ```
 
+### Long .md briefs
+
+Attach Markdown or text files up to **200,000 characters (1 MB)**. Long briefs are condensed to their key lines before they reach the AI ([src/lib/brief.ts](src/lib/brief.ts)), because Groq's free tier allows only about 8,000 tokens per request and Burmese text uses many tokens per character. Markdown noise (images, link URLs, HTML) is removed first. Then whole lines are kept in their original order, preferring headings, timestamps and scene markers, on-screen text, prices and discounts, bullet points, and lines like "Purpose" or "Audience". Long narration paragraphs are shortened or skipped. "…" marks skipped parts, and the project list shows how much was kept (e.g. "condensed 16%").
+
+How much is kept is set per AI service: about 3,000 tokens for Groq's free tier and 60,000 for Claude. Set `BRIEF_MAX_TOKENS` in `.env` to change it, for example on a paid Groq plan.
+
 ### Reference reels
 
 Paste a reel link in **🔗 Reference reel** when generating, and the new video copies its style. The AI only reads text, so the server reads the link first ([src/lib/reference-reel.ts](src/lib/reference-reel.ts)):
@@ -95,25 +101,31 @@ On a CPU without a GPU, generation can take a few minutes per video. Small model
 
 ## Design templates
 
-Every video uses one of five templates ([src/remotion/templates.ts](src/remotion/templates.ts)), each with its own colours, fonts, photo framing, captions, price cards, opening animation and signature transition:
+Every video uses one of six templates ([src/remotion/templates.ts](src/remotion/templates.ts)), each with its own colours, fonts, photo framing, captions, price cards, opening animation and signature transition:
 
 | Template | Look | Opening | Signature transition |
 |---|---|---|---|
+| **Modern Pulse** (default) | Motion-graphics look of the hand-made Just YM reels: animated gradient mesh, letter-by-letter kinetic type, 3D card coverflow, frosted word-by-word captions, starburst stickers, film grain | Photo montage cut on every beat, or a hero card with giant stacked words | Zoom-blur with a white flash |
 | **Is Calling** | Bold orange, full-screen photos, two-tone captions, white price cards | Logo stamp + popping letters | Orange circle wipe |
 | **Cinematic** | Letterbox bars, Playfair serif, gold, glass cards | Velvet curtains open | Dip to black |
 | **Travel Journal** | Cream paper, tilted polaroids with tape, handwriting, ticket-stub cards | Passport stamp | Slide |
 | **Neon Night** | Dark, glowing Bebas type, neon-bordered cards | Neon sign flickers on | Flash |
 | **Flash Sale** | Yellow/black, split-screen photos, text blocks, price tags, starburst stickers | Slam + screen shake | Hard wipe |
 
-The AI picks the template that fits the request (nightlife → Neon Night, sales → Flash Sale, slow nature trips → Travel Journal, …) and varies the scene structure. Every generation also gets a random **seed** that changes camera moves (zoom in/out, pan), tilts and caption placement, so two videos with the same template still differ. On the project page, **🎨 Design** switches template instantly, **🎲 Surprise me** picks a random one, and **↻ New variation** keeps the template with a new seed.
+Modern Pulse is preferred for new videos (it sits out only right after a Pulse video, so it alternates with the template that best fits the mood); otherwise the template fits the request (nightlife → Neon Night, sales → Flash Sale, slow nature trips → Travel Journal, …), and the scene structure varies. Ask for one by name ("modern style", "neon template") to force it. Modern Pulse has its own layout for every scene type ([src/remotion/modern.tsx](src/remotion/modern.tsx)); the seed also picks one of four colour palettes (sunset, lagoon, berry, jungle) and alternates attraction layouts (3D card vs full-screen punch-in). Every generation also gets a random **seed** that changes camera moves (zoom in/out, pan), tilts and caption placement, so two videos with the same template still differ. On the project page, **🎨 Design** switches template instantly, **🎲 Surprise me** picks a random one, and **↻ New variation** keeps the template with a new seed.
 
 ## Production polish
 
-- **Beat-synced editing:** scene cuts snap to the music's beat grid (half-bar steps; tempos in [src/remotion/music.ts](src/remotion/music.ts)), so edits land on the music.
+- **Beat-synced editing:** scene cuts snap to the music's beat grid (half-bar steps; tempos in [src/remotion/music.ts](src/remotion/music.ts)), so edits land on the music. Every template also "breathes" with a small zoom kick on each beat and shows a story-style progress bar at the top.
+- **Export-safe effects:** the in-browser MP4 export can't draw text outlines, backdrop blur, conic gradients or off-centre radial gradients, so the designs avoid them (`RadialAt` in [src/remotion/components.tsx](src/remotion/components.tsx) places an off-centre glow in a way the exporter can draw). Film grain is a noise texture from [scripts/make-grain.mjs](scripts/make-grain.mjs) (`public/fx/grain.png`).
 - **Sound design:** original sound effects ([scripts/make-sfx.mjs](scripts/make-sfx.mjs) → `public/sfx/`): whooshes on cuts, an impact / stamp / sparkle on the opening (per template), pops when price cards land, a click and "ding" in the app scene, a ding on payment success, and a riser into the outro. Toggle them per video with **🔊 Sound effects** on the project page.
 - **Motion graphics per template** ([src/remotion/fx.tsx](src/remotion/fx.tsx)): golden bokeh (Is Calling), light leak + dust (Cinematic), floating doodles (Travel Journal), light streaks + sparkles (Neon Night), confetti (Flash Sale), plus ray bursts on big moments.
 - **Kinetic typography:** words rise out of a mask, blur in, flicker on, slam in, or "write on" depending on the template. Highlights get an underline sweep, and prices count up.
 - **App scene:** a phone running a justym.me-style app. The city is typed into search, real tickets with live prices scroll past, one is tapped, and "Booked ✓" drops in.
+
+## Daily generation limit
+
+Each user can generate `DAILY_GENERATION_LIMIT` videos per day (default 10). New videos and **Revise** both count; changing the design, music or sound effects doesn't, and failed generations aren't counted ([src/lib/usage.ts](src/lib/usage.ts)). The Generate form and the Revise box show "7 of 10 videos left today · resets in 5h 20m" with a progress bar, and disable themselves at the limit. The server enforces it too (HTTP 429). The day resets at midnight in `DAILY_LIMIT_TIMEZONE` (default `Asia/Yangon`). Emails in `DAILY_LIMIT_EXEMPT_EMAILS` are unlimited, and `0` turns the limit off. Generations are stored in the `Generation` table; run `npm run db:deploy` once to create it (Vercel does this on deploy).
 
 ## Download MP4 (works on Vercel)
 
@@ -195,7 +207,8 @@ src/
   components/                    client UI (PromptForm, ProjectEditor, AuthButtons)
   lib/                           auth, prisma, render queue
   lib/ai/                        AI providers: open-model, claude, demo
-  remotion/                      schema, composition, Remotion root
+  remotion/                      schema, composition, Remotion root, templates
+  remotion/modern.tsx            Modern Pulse scenes + beat pulse / progress bar layers
   proxy.ts                       redirects signed-out users away from /dashboard and /projects
 prisma/schema.prisma             auth tables + Project + Render
 ```

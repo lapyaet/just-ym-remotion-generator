@@ -132,7 +132,7 @@ export function buildDemoVideo(prompt: string, previous: GeneratedVideo | undefi
         ? "cinematic"
         : has(prompt, ["nature", "temple", "culture", "journal", "couple", "honeymoon", "slow", "chiang mai"])
           ? "journal"
-          : (["calling", "cinematic", "journal", "neon", "flash"] as const)[Math.floor(Math.random() * 5)];
+          : Math.random() < 0.5 ? "pulse" : (["calling", "cinematic", "journal", "neon", "flash"] as const)[Math.floor(Math.random() * 5)];
   return {
     title: city ? `${city} is Calling` : prompt.split(/[.,:!?\n]/)[0].slice(0, 40) || "Just YM reel",
     aspectRatio: pickAspect(prompt) ?? "9:16",

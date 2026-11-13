@@ -8,6 +8,7 @@ import { DIMENSIONS, FPS, totalFrames, type VideoSpec } from "@/remotion/schema"
 import { MUSIC_TRACKS } from "@/remotion/music";
 import { randomSeed, TEMPLATE_IDS, TEMPLATES, type TemplateId } from "@/remotion/templates";
 import { GeneratingOverlay } from "./GeneratingOverlay";
+import { UsageMeter, useUsage } from "./UsageMeter";
 import { BrowserExport } from "./BrowserExport";
 
 type RenderRow = {
@@ -37,6 +38,7 @@ export function ProjectEditor({
   const [revision, setRevision] = useState("");
   const [busy, setBusy] = useState<null | "revise" | "render" | "delete" | "music">(null);
   const [error, setError] = useState<string | null>(null);
+  const usage = useUsage();
 
   const { width, height } = DIMENSIONS[spec.aspectRatio];
   const active = renders.find((r) => r.status === "queued" || r.status === "rendering");
@@ -59,6 +61,7 @@ export function ProjectEditor({
     try {
       const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
       const data = await res.json();
+      if (data.usage) usage.set(data.usage);
       if (!res.ok) throw new Error(data.error ?? "Request failed");
       return data;
     } catch (err) {
@@ -75,6 +78,7 @@ export function ProjectEditor({
     if (data) {
       setSpec(data.spec);
       setRevision("");
+      usage.refresh();
     }
   }
 
@@ -141,19 +145,22 @@ export function ProjectEditor({
           <input
             value={revision}
             onChange={(e) => setRevision(e.target.value)}
-            placeholder="Ask for changes, e.g. “add Safari World and make it faster”"
+            placeholder={usage.blocked ? "Daily limit reached: revisions unlock at midnight" : "Ask for changes, e.g. “add Safari World and make it faster”"}
             className="flex-1 rounded-full border border-white/10 bg-white/[.04] px-4 py-2.5 text-sm outline-none focus:border-indigo-400"
-            disabled={busy !== null}
+            disabled={busy !== null || usage.blocked}
             maxLength={2000}
           />
           <button
             type="submit"
-            disabled={busy !== null || revision.trim().length < 3}
+            disabled={busy !== null || usage.blocked || revision.trim().length < 3}
             className="rounded-full bg-white/10 px-5 text-sm font-medium hover:bg-white/20 disabled:opacity-50"
           >
             {busy === "revise" ? "Revising…" : "Revise"}
           </button>
         </form>
+        <div className="mt-2 max-w-md">
+          <UsageMeter usage={usage.usage} compact />
+        </div>
         <div className="mt-5 flex flex-wrap items-center gap-2 text-sm">
           <span className="mr-1 text-zinc-400">🎨 Design</span>
           {TEMPLATE_IDS.map((id: TemplateId) => (

@@ -1,5 +1,7 @@
 import "server-only";
 import { readVideoRequest } from "./api";
+import { getProvider } from "./ai";
+import { briefTokenBudget } from "./brief";
 import { analyzeReferenceReel, describeReference, ReferenceLinkError, summarizeReference } from "./reference-reel";
 
 /**
@@ -11,7 +13,7 @@ export async function buildVideoRequest(body: unknown): Promise<{ text: string; 
   const raw = (body as { referenceUrl?: unknown } | null)?.referenceUrl;
   const referenceUrl = typeof raw === "string" ? raw.trim().slice(0, 2000) : "";
 
-  const req = readVideoRequest(body, Boolean(referenceUrl));
+  const req = readVideoRequest(body, Boolean(referenceUrl), briefTokenBudget(getProvider()));
   if ("error" in req || !referenceUrl) return req;
 
   try {

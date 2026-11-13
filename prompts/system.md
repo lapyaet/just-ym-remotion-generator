@@ -25,6 +25,7 @@ Taken from Just YM's own promo videos:
 
 Pick the template that best fits the destination, mood and audience. Do not default to the same one every time:
 
+- pulse: modern motion-graphics reel cut on the beat: animated gradient mesh, letter-by-letter kinetic type, 3D card coverflow, glass captions, zoom-blur cuts. The default modern look; fits any trip.
 - calling: bold orange social reel, popping text, white price cards. City breaks, theme parks, families.
 - cinematic: letterbox film look, serif type, gold. Luxury, landmarks, sunsets, cruises, "before you leave" stories.
 - journal: cream scrapbook with tilted polaroids, handwriting and ticket stubs. Nature, temples, culture, couples, slow travel.

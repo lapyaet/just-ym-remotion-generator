@@ -20,6 +20,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   projects      Project[]
+  generations   Generation[]
 
   @@map("user")
 }
@@ -101,4 +102,16 @@ model Render {
   updatedAt  DateTime @updatedAt
 
   @@index([projectId, createdAt])
+}
+
+/// One AI generation (new video or revision), used for the daily limit.
+model Generation {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// create | revise
+  kind      String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }

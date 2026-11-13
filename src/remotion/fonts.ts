@@ -8,8 +8,8 @@ import { loadFont as loadBebas } from "@remotion/google-fonts/BebasNeue";
 import type { Template } from "./templates";
 
 // Loaded once per page/render. Remotion waits for them before capturing frames.
-const poppins = loadPoppins("normal", { weights: ["500", "700", "800"], subsets: ["latin"] });
-const myanmar = loadMyanmar("normal", { weights: ["500", "700", "800"], subsets: ["myanmar"] });
+const poppins = loadPoppins("normal", { weights: ["500", "600", "700", "800", "900"], subsets: ["latin"] });
+const myanmar = loadMyanmar("normal", { weights: ["500", "700", "800", "900"], subsets: ["myanmar"] });
 const anton = loadAnton("normal", { weights: ["400"], subsets: ["latin"] });
 const lilita = loadLilita("normal", { weights: ["400"], subsets: ["latin"] });
 const playfair = loadPlayfair("normal", { weights: ["600", "800"], subsets: ["latin"] });

@@ -2,6 +2,7 @@ import React from "react";
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { useTheme, useUnit } from "./components";
 import { rand } from "./templates";
+import { Grain } from "./modern";
 
 /**
  * Motion-graphics layers drawn over the whole reel, one look per template:
@@ -16,9 +17,12 @@ import { rand } from "./templates";
 export const TemplateFX: React.FC = () => {
   const { t } = useTheme();
   switch (t.id) {
+    case "pulse":
+      return <Grain opacity={0.2} />;
     case "cinematic":
       return (
         <>
+          <Grain opacity={0.12} />
           <LightLeak />
           <Dust count={22} color="rgba(255,240,210,0.55)" />
         </>
@@ -111,7 +115,8 @@ export const LightLeak: React.FC = () => {
           top: -height * 0.2,
           width: width * 0.9,
           height: height * 1.4,
-          background: "radial-gradient(closest-side, rgba(255,170,90,0.9), rgba(255,120,60,0) 100%)",
+          // Ellipse filling the box (farthest-corner reach is sqrt(2) x closest-side), drawable by the MP4 export.
+          background: "radial-gradient(rgba(255,170,90,0.9) 0%, rgba(255,120,60,0) 70.7%)",
           opacity: pulse,
           transform: "rotate(18deg)",
           filter: `blur(${width * 0.04}px)`,

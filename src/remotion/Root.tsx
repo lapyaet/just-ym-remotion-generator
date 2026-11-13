@@ -6,7 +6,7 @@ import { COMPOSITION_ID, DIMENSIONS, emptyScene, FPS, totalFrames, type VideoSpe
 const DREAM_WORLD = {
   name: "Dream World Bangkok",
   city: "Bangkok",
-  imageUrl: "https://api.justym.me/file/image/product/media/696f24db9b2ac5b1393bb766_NNV2mPJK",
+  imageUrl: "https://api.justym.me/file/image/product/media/696f24db9b2ac5b1393bb766_NNV2mPJK38tYXMFX135im.jpg",
   priceText: "฿1,000",
   pageUrl: "https://www.justym.me/en/ticket/dream-world-bangkok/696f374de7f923b345648a3d",
 };
@@ -14,7 +14,7 @@ const DREAM_WORLD = {
 // Used by Remotion Studio (`npm run studio`) and as the default props.
 const sampleSpec: VideoSpec = {
   version: 2,
-  template: "calling",
+  template: "pulse",
   seed: 1,
   sfx: true,
   title: "Bangkok is Calling",

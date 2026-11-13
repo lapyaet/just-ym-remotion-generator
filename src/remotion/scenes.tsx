@@ -15,6 +15,7 @@ import {
   Pill,
   Polaroid,
   PriceNote,
+  RadialAt,
   ProductCard,
   SceneBackground,
   Tag,
@@ -31,6 +32,7 @@ import { FONT_BODY, FONT_HAND, FONT_SERIF, fontFor } from "./fonts";
 import { type Scene, type VideoSpec } from "./schema";
 import { getTemplate } from "./templates";
 import { Burst, Confetti } from "./fx";
+import { PulseScene } from "./modern";
 
 type SceneProps = { scene: Scene; spec: VideoSpec };
 
@@ -44,6 +46,7 @@ export const SceneView: React.FC<SceneProps & { index: number }> = ({ index, ...
 };
 
 const SceneSwitch: React.FC<SceneProps> = (props) => {
+  if (props.spec.template === "pulse") return <PulseScene {...props} />;
   switch (props.scene.type) {
     case "hook":
       return <HookScene {...props} />;
@@ -617,21 +620,18 @@ const PaymentScene: React.FC<SceneProps> = ({ scene }) => {
   const bg =
     t.id === "calling"
       ? `linear-gradient(160deg, #FFA466 0%, ${t.colors.primary} 45%, #F26B1D 100%)`
-      : t.id === "flash" || t.id === "journal"
-        ? t.colors.bg
-        : t.id === "neon"
-          ? t.colors.bg
-          : `radial-gradient(circle at 50% 30%, #2A2418, ${t.colors.bg} 70%)`;
+      : t.colors.bg;
   const headColor = t.light ? t.colors.text : "#FFFFFF";
   const accentColor = t.id === "calling" ? "#3A1A05" : t.id === "flash" ? "#E8352B" : t.colors.primary;
   return (
-    <AbsoluteFill style={{ background: bg }}>
+    <AbsoluteFill style={{ background: bg, overflow: "hidden" }}>
       {t.id === "neon" ? (
         <>
-          <AbsoluteFill style={{ background: `radial-gradient(circle at 30% 20%, ${t.colors.primary}66, rgba(0,0,0,0) 45%)` }} />
-          <AbsoluteFill style={{ background: `radial-gradient(circle at 80% 85%, ${t.colors.accent}55, rgba(0,0,0,0) 45%)` }} />
+          <RadialAt x={0.3} y={0.2} stops={[[`${t.colors.primary}66`, 0], ["rgba(0,0,0,0)", 45]]} />
+          <RadialAt x={0.8} y={0.85} stops={[[`${t.colors.accent}55`, 0], ["rgba(0,0,0,0)", 45]]} />
         </>
       ) : null}
+      {t.id === "cinematic" ? <RadialAt x={0.5} y={0.3} stops={[["#2A2418", 0], [t.colors.bg, 70]]} /> : null}
       {t.photo === "polaroid" ? <Paper /> : null}
       {t.photo === "letterbox" ? <Letterbox /> : null}
       {t.photo === "split" ? <SplitStripes /> : null}
@@ -697,14 +697,13 @@ const OutroScene: React.FC<SceneProps> = ({ scene }) => {
   const ctaPulse = 1 + Math.max(0, Math.sin((frame - 30) / 6)) * 0.04;
   const flicker = useFlicker(12);
   const hasPhoto = Boolean(scene.imageUrl);
-  const bg =
-    t.id === "calling"
-      ? "linear-gradient(180deg, #FFF1E6 0%, #FFE2CC 60%, #FFC9A3 100%)"
-      : t.id === "journal" || t.id === "flash"
-        ? t.colors.bg
-        : t.id === "neon"
-          ? `radial-gradient(circle at 50% 35%, ${t.colors.primary}44, ${t.colors.bg} 65%)`
-          : `radial-gradient(circle at 50% 40%, #241F16, ${t.colors.bg} 70%)`;
+  const bg = t.id === "calling" ? "linear-gradient(180deg, #FFF1E6 0%, #FFE2CC 60%, #FFC9A3 100%)" : t.colors.bg;
+  const bgGlow =
+    t.id === "neon" ? (
+      <RadialAt x={0.5} y={0.35} stops={[[`${t.colors.primary}44`, 0], [t.colors.bg, 65]]} />
+    ) : t.id === "cinematic" ? (
+      <RadialAt x={0.5} y={0.4} stops={[["#241F16", 0], [t.colors.bg, 70]]} />
+    ) : null;
   const headStyle: React.CSSProperties =
     t.id === "neon"
       ? { fontFamily: fontFor("bebas"), color: "#FFFFFF", textShadow: glow(t.colors.primary, u * 1.2), opacity: flicker, letterSpacing: "0.04em" }
@@ -731,7 +730,8 @@ const OutroScene: React.FC<SceneProps> = ({ scene }) => {
       <Pill size={38}>Book now · justym.me →</Pill>
     );
   return (
-    <AbsoluteFill style={{ background: bg, alignItems: "center", fontFamily: FONT_BODY }}>
+    <AbsoluteFill style={{ background: bg, alignItems: "center", fontFamily: FONT_BODY, overflow: "hidden" }}>
+      {bgGlow}
       {t.photo === "polaroid" ? <Paper /> : null}
       {t.photo === "letterbox" ? <Letterbox /> : null}
       {t.photo === "split" ? <SplitStripes /> : null}

@@ -14,15 +14,15 @@ import { TEMPLATE_IDS, type TemplateId } from "@/remotion/templates";
 type SceneType = GeneratedScene["type"];
 
 export const BLUEPRINTS: { id: string; label: string; scenes: SceneType[]; fits: TemplateId[] }[] = [
-  { id: "highlights", label: "Highlights tour", scenes: ["hook", "attraction", "attraction", "attraction", "caption", "outro"], fits: ["cinematic", "journal", "neon", "calling"] },
-  { id: "deals-first", label: "Deals first", scenes: ["hook", "deals", "attraction", "app", "payment", "outro"], fits: ["flash", "calling"] },
-  { id: "phone-showcase", label: "Phone showcase", scenes: ["hook", "app", "attraction", "attraction", "deals", "outro"], fits: ["calling", "neon", "flash"] },
-  { id: "story", label: "Story", scenes: ["hook", "caption", "attraction", "attraction", "caption", "outro"], fits: ["cinematic", "journal"] },
-  { id: "countdown", label: "Top 4 countdown", scenes: ["hook", "attraction", "attraction", "attraction", "attraction", "outro"], fits: ["flash", "neon", "calling"] },
-  { id: "classic", label: "Classic Just YM", scenes: ["hook", "attraction", "attraction", "caption", "app", "payment", "outro"], fits: ["calling", "flash"] },
-  { id: "quick-tour", label: "Quick tour", scenes: ["hook", "attraction", "caption", "attraction", "app", "outro"], fits: ["neon", "calling", "journal"] },
-  { id: "problem-solution", label: "Problem → solution", scenes: ["hook", "caption", "app", "payment", "attraction", "outro"], fits: ["calling", "flash", "neon"] },
-  { id: "spotlight", label: "Spotlight", scenes: ["hook", "attraction", "caption", "deals", "outro"], fits: ["cinematic", "neon", "journal"] },
+  { id: "highlights", label: "Highlights tour", scenes: ["hook", "attraction", "attraction", "attraction", "caption", "outro"], fits: ["pulse", "cinematic", "journal", "neon", "calling"] },
+  { id: "deals-first", label: "Deals first", scenes: ["hook", "deals", "attraction", "app", "payment", "outro"], fits: ["pulse", "flash", "calling"] },
+  { id: "phone-showcase", label: "Phone showcase", scenes: ["hook", "app", "attraction", "attraction", "deals", "outro"], fits: ["pulse", "calling", "neon", "flash"] },
+  { id: "story", label: "Story", scenes: ["hook", "caption", "attraction", "attraction", "caption", "outro"], fits: ["pulse", "cinematic", "journal"] },
+  { id: "countdown", label: "Top 4 countdown", scenes: ["hook", "attraction", "attraction", "attraction", "attraction", "outro"], fits: ["pulse", "flash", "neon", "calling"] },
+  { id: "classic", label: "Classic Just YM", scenes: ["hook", "attraction", "attraction", "caption", "app", "payment", "outro"], fits: ["pulse", "calling", "flash"] },
+  { id: "quick-tour", label: "Quick tour", scenes: ["hook", "attraction", "caption", "attraction", "app", "outro"], fits: ["pulse", "neon", "calling", "journal"] },
+  { id: "problem-solution", label: "Problem → solution", scenes: ["hook", "caption", "app", "payment", "attraction", "outro"], fits: ["pulse", "calling", "flash", "neon"] },
+  { id: "spotlight", label: "Spotlight", scenes: ["hook", "attraction", "caption", "deals", "outro"], fits: ["pulse", "cinematic", "neon", "journal"] },
 ];
 
 export type UserHistory = { templates: string[]; shapes: string[]; music: string[] };
@@ -49,6 +49,7 @@ const shapeOf = (types: string[]) => types.join(">");
 /** "neon style", "cinematic template", "design: flash sale" → that template. */
 export function explicitTemplate(text: string): TemplateId | null {
   const names: [RegExp, TemplateId][] = [
+    [/modern(\s*pulse)?|pulse|motion\s*graphics?/, "pulse"],
     [/is\s*calling/, "calling"],
     [/cinematic|film/, "cinematic"],
     [/travel\s*journal|journal|scrapbook|polaroid/, "journal"],
@@ -68,6 +69,8 @@ export function moodTemplates(text: string): TemplateId[] {
   const t = text.toLowerCase();
   const score = (words: string[]) => words.filter((w) => t.includes(w)).length;
   const scores: Record<TemplateId, number> = {
+    // The modern motion-graphics look leads unless the request clearly fits another mood.
+    pulse: 1.5 + score(["modern", "trendy", "tiktok", "reels", "hotel", "tickets", "southeast asia", "attractions", "app"]),
     flash: score(["sale", "deal", "discount", "% off", "promo", "offer", "cheap", "save", "limited"]),
     neon: score(["night", "bar", "rooftop", "party", "festival", "concert", "show", "club", "after dark", "nightlife", "market"]),
     cinematic: score(["luxury", "sunset", "cruise", "before you leave", "elegant", "premium", "landmark", "skyline", "honeymoon"]),
@@ -81,7 +84,8 @@ export function moodTemplates(text: string): TemplateId[] {
 export function chooseTemplate(text: string, history: UserHistory): TemplateId {
   const explicit = explicitTemplate(text);
   if (explicit) return explicit;
-  const recent = new Set(history.templates.slice(0, 2));
+  // Pulse only sits out right after a Pulse video; the others after either of the last two.
+  const recent = new Set(history.templates.slice(0, 2).filter((id, i) => id !== "pulse" || i === 0));
   const ranked = moodTemplates(text).filter((id) => !recent.has(id));
   const pool = ranked.length ? ranked : [...TEMPLATE_IDS];
   // Mostly the best fit, sometimes the second, occasionally anything new.

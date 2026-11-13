@@ -40,6 +40,23 @@ export function useEnter(delay = 0, damping = 14) {
   return spring({ frame: frame - delay, fps, config: { damping, mass: 0.6 } });
 }
 
+/**
+ * A radial gradient centred at (x, y) (fractions of the frame) that looks the
+ * same in the preview and in the browser MP4 export. The exporter only draws
+ * radial gradients centred in their element, so this puts a centred one on an
+ * oversized layer. `stops` are [colour, percent], measured to the farthest
+ * corner like CSS's default.
+ */
+export const RadialAt: React.FC<{ x: number; y: number; stops: [string, number][] }> = ({ x, y, stops }) => {
+  const { width, height } = useVideoConfig();
+  const cx = x * width;
+  const cy = y * height;
+  const r = Math.max(Math.hypot(cx, cy), Math.hypot(width - cx, cy), Math.hypot(cx, height - cy), Math.hypot(width - cx, height - cy));
+  // A centred "circle" gradient reaches its square's corners at r * sqrt(2).
+  const css = stops.map(([c, p]) => `${c} ${(p / Math.SQRT2).toFixed(2)}%`).join(", ");
+  return <div style={{ position: "absolute", left: cx - r, top: cy - r, width: 2 * r, height: 2 * r, background: `radial-gradient(circle, ${css})`, pointerEvents: "none" }} />;
+};
+
 /** Whether text in this template sits on top of the photo (vs. on paper / a colour block). */
 export const textOnPhoto = (t: Template) => t.photo === "fullbleed" || t.photo === "letterbox" || t.photo === "neon";
 
@@ -62,7 +79,11 @@ const Photo: React.FC<{ src: string; style?: React.CSSProperties; blur?: number 
   const transform = useKenBurns();
   const { t } = useTheme();
   if (!src || failed) {
-    return <AbsoluteFill style={{ background: `radial-gradient(circle at 30% 20%, ${t.colors.primary}66, ${t.colors.bg} 70%)`, ...style }} />;
+    return (
+      <AbsoluteFill style={{ background: t.colors.bg, overflow: "hidden", ...style }}>
+        <RadialAt x={0.3} y={0.2} stops={[[`${t.colors.primary}66`, 0], [t.colors.bg, 70]]} />
+      </AbsoluteFill>
+    );
   }
   return (
     <Img
@@ -120,7 +141,7 @@ export const Letterbox: React.FC = () => {
     <>
       <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: bar, background: "#000" }} />
       <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: bar, background: "#000" }} />
-      <AbsoluteFill style={{ background: "radial-gradient(circle at 50% 45%, transparent 55%, rgba(0,0,0,0.55) 100%)" }} />
+      <RadialAt x={0.5} y={0.45} stops={[["rgba(0,0,0,0)", 55], ["rgba(0,0,0,0.55)", 100]]} />
     </>
   );
 };
@@ -130,8 +151,8 @@ export const Paper: React.FC = () => {
   const { t } = useTheme();
   return (
     <AbsoluteFill style={{ backgroundColor: t.colors.bg }}>
-      <AbsoluteFill style={{ background: "radial-gradient(circle at 20% 15%, rgba(255,255,255,0.7), rgba(255,255,255,0) 40%)" }} />
-      <AbsoluteFill style={{ background: "radial-gradient(circle at 85% 90%, rgba(201,160,110,0.25), rgba(201,160,110,0) 45%)" }} />
+      <RadialAt x={0.2} y={0.15} stops={[["rgba(255,255,255,0.7)", 0], ["rgba(255,255,255,0)", 40]]} />
+      <RadialAt x={0.85} y={0.9} stops={[["rgba(201,160,110,0.25)", 0], ["rgba(201,160,110,0)", 45]]} />
     </AbsoluteFill>
   );
 };
@@ -646,7 +667,7 @@ export const DiscountSticker: React.FC<{ text: string; delay?: number; size?: nu
           ? { background: "linear-gradient(135deg, #F3D98B, #C89116)", color: "#111", borderRadius: "50%", fontFamily: FONT_SERIF }
           : t.id === "journal"
             ? { background: "transparent", color: "#C0392B", border: `${6 * u}px double #C0392B`, borderRadius: "50%" }
-            : { background: `radial-gradient(circle at 35% 30%, #FFD34D, ${t.colors.primary})`, color: "#B3261E", border: `${6 * u}px solid #FFFFFF`, borderRadius: "50%" };
+            : { background: `radial-gradient(circle, #FFD34D 0%, ${t.colors.primary} 72%)`, color: "#B3261E", border: `${6 * u}px solid #FFFFFF`, borderRadius: "50%" };
   return (
     <div
       style={{

@@ -4,6 +4,7 @@ import { apiUser, notFound } from "@/lib/api";
 import { buildVideoRequest } from "@/lib/video-request";
 import { generateVideoSpec, GenerationError } from "@/lib/ai";
 import { prisma } from "@/lib/prisma";
+import { getUsage, limitMessage, recordGeneration, usageJson } from "@/lib/usage";
 import { getOwnedProject, parseSpec } from "@/lib/projects";
 import { isSafeMusicFile } from "@/remotion/music";
 import { TEMPLATE_IDS } from "@/remotion/templates";
@@ -42,6 +43,11 @@ export async function PATCH(request: Request, { params }: Ctx) {
     return NextResponse.json({ spec });
   }
 
+  const usage = await getUsage(user);
+  if (usage.remaining <= 0) {
+    return NextResponse.json({ error: limitMessage(usage), usage: usageJson(usage) }, { status: 429 });
+  }
+
   const req = await buildVideoRequest(body);
   if ("error" in req) return NextResponse.json({ error: req.error }, { status: 400 });
 
@@ -51,6 +57,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
       where: { id: project.id },
       data: { title: spec.title, spec: JSON.stringify(spec) },
     });
+    await recordGeneration(user.id, "revise");
     return NextResponse.json({ spec });
   } catch (error) {
     if (error instanceof GenerationError) {

@@ -6,7 +6,7 @@
  * variation inside the template (zoom direction, tilt, caption position).
  */
 
-export const TEMPLATE_IDS = ["calling", "cinematic", "journal", "neon", "flash"] as const;
+export const TEMPLATE_IDS = ["pulse", "calling", "cinematic", "journal", "neon", "flash"] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 
 export type Template = {
@@ -28,18 +28,34 @@ export type Template = {
     /** rgb triplet used to shade photos, e.g. "0,0,0" */
     shade: string;
   };
-  fonts: { display: "fun" | "serif" | "hand" | "bebas" | "impact"; headline: "body" | "serif" | "hand" | "bebas" | "impact" };
+  fonts: { display: "body" | "fun" | "serif" | "hand" | "bebas" | "impact"; headline: "body" | "serif" | "hand" | "bebas" | "impact" };
   photo: "fullbleed" | "letterbox" | "polaroid" | "neon" | "split";
   caption: "twoTone" | "elegant" | "handwritten" | "neon" | "blocky";
   tag: "pill" | "rule" | "stamp" | "outline" | "block";
   card: "white" | "glass" | "ticket" | "neon" | "tag";
-  hook: "pop" | "curtain" | "stamp" | "flicker" | "slam";
-  signature: "orange-wipe" | "dip" | "slide" | "flash" | "wipe";
+  hook: "pop" | "curtain" | "stamp" | "flicker" | "slam" | "montage";
+  signature: "orange-wipe" | "dip" | "slide" | "flash" | "wipe" | "zoom";
   mascot: boolean;
   captionPlacement: "bottom" | "top" | "alternate";
 };
 
 export const TEMPLATES: Record<TemplateId, Template> = {
+  pulse: {
+    id: "pulse",
+    label: "Modern Pulse",
+    mood: "modern motion-graphics reel cut on the beat: animated gradient mesh, letter-by-letter kinetic type, 3D card coverflow, glass captions, zoom-blur cuts, film grain (works for any trip; the default modern look)",
+    light: false,
+    colors: { bg: "#0A0F24", surface: "#141A3A", primary: "#FF924D", accent: "#FFC15E", text: "#FFFFFF", muted: "rgba(255,255,255,0.85)", cardBg: "rgba(255,255,255,0.96)", cardText: "#0A0F24", price: "#FF5E3A", shade: "10,15,36" },
+    fonts: { display: "body", headline: "body" },
+    photo: "fullbleed",
+    caption: "twoTone",
+    tag: "pill",
+    card: "glass",
+    hook: "montage",
+    signature: "zoom",
+    mascot: true,
+    captionPlacement: "bottom",
+  },
   calling: {
     id: "calling",
     label: "Is Calling",
@@ -122,7 +138,7 @@ export const TEMPLATES: Record<TemplateId, Template> = {
   },
 };
 
-export const getTemplate = (id: string | undefined): Template => TEMPLATES[(id as TemplateId) ?? "calling"] ?? TEMPLATES.calling;
+export const getTemplate = (id: string | undefined): Template => TEMPLATES[(id as TemplateId) ?? "pulse"] ?? TEMPLATES.pulse;
 
 /** Deterministic pseudo-random number in [0, 1) for (seed, slot). */
 export function rand(seed: number, slot: number) {
